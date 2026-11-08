@@ -2401,3 +2401,22 @@ button {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+
+#download-mod-button:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+#client-mod-state {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#game-folder-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

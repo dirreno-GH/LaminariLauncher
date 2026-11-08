@@ -270,6 +270,7 @@ document.getElementById("library-card").addEventListener("click", () => openPage
 
 let importedVersions = loadImportedVersions();
 let activeVersionPath = localStorage.getItem("laminari_active_version") || "";
+let gameEnvironment = null;
 
 function loadImportedVersions() {
   try {
@@ -286,6 +287,11 @@ function saveImportedVersions() {
 
 function activeVersion() {
   return importedVersions.find((version) => version.path === activeVersionPath) || null;
+}
+
+function isTargetVersion(version) {
+  const minecraftVersion = version.minecraftVersion || version.inheritsFrom || version.id || "";
+  return version.loader === "Fabric" && minecraftVersion === "1.21.11";
 }
 
 function selectVersion(version) {
@@ -329,7 +335,8 @@ function renderVersions() {
     const details = document.createElement("span");
     details.className = "version-details";
     const inherited = version.inheritsFrom ? " · база " + version.inheritsFrom : "";
-    details.textContent = (version.releaseType || "release") + inherited;
+    const target = isTargetVersion(version) ? " · Laminari Ready" : "";
+    details.textContent = (version.releaseType || "release") + inherited + target;
 
     const path = document.createElement("small");
     path.className = "version-path";
@@ -370,18 +377,95 @@ async function requestImport() {
 document.getElementById("import-button").addEventListener("click", requestImport);
 document.getElementById("library-import-button").addEventListener("click", requestImport);
 
-document.getElementById("play-button").addEventListener("click", () => {
+async function refreshGameEnvironment() {
+  try {
+    gameEnvironment = await invoke("game_environment");
+    document.getElementById("game-folder-state").textContent = "Готова";
+    document.getElementById("game-folder-path").textContent = gameEnvironment.path;
+    document.getElementById("client-mod-state").textContent =
+      gameEnvironment.clientModInstalled && gameEnvironment.fabricApiInstalled
+        ? "УСТАНОВЛЕН"
+        : "НЕ УСТАНОВЛЕН";
+  } catch (error) {
+    document.getElementById("game-folder-state").textContent = "Ошибка";
+    document.getElementById("game-folder-path").textContent = String(error);
+  }
+}
+
+document.getElementById("download-mod-button").addEventListener("click", async () => {
   const version = activeVersion();
 
   if (!version) {
-    showToast("Laminari Client", "Сначала импортируй версию Minecraft.");
+    showToast("Скачать мод", "Сначала импортируй Fabric 1.21.11.");
     return;
   }
 
-  showToast("Запуск", "Версия " + (version.name || version.id) + " выбрана. Запуск подключим следующим этапом.");
+  if (!isTargetVersion(version)) {
+    showToast("Скачать мод", "Laminari Client поддерживает только Fabric 1.21.11.");
+    return;
+  }
+
+  const button = document.getElementById("download-mod-button");
+  button.disabled = true;
+  button.textContent = "Скачивание...";
+
+  try {
+    const result = await invoke("download_client_mod");
+    await refreshGameEnvironment();
+    showToast("Laminari Client", "Клиент и Fabric API установлены в mods.");
+    button.textContent = "Мод установлен";
+  } catch (error) {
+    showToast("Скачать мод", String(error));
+    button.textContent = "Скачать мод";
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.getElementById("game-folder-card").addEventListener("click", async () => {
+  try {
+    await invoke("open_game_folder");
+  } catch (error) {
+    showToast("Папка игры", String(error));
+  }
+});
+
+document.getElementById("play-button").addEventListener("click", async () => {
+  const version = activeVersion();
+
+  if (!version) {
+    showToast("Laminari Client", "Сначала импортируй Fabric 1.21.11.");
+    return;
+  }
+
+  if (!isTargetVersion(version)) {
+    showToast("Laminari Client", "Запуск разрешён только для Fabric 1.21.11.");
+    return;
+  }
+
+  try {
+    await refreshGameEnvironment();
+
+    if (!gameEnvironment?.clientModInstalled || !gameEnvironment?.fabricApiInstalled) {
+      showToast("Laminari Client", "Сначала нажми «Скачать мод».");
+      return;
+    }
+
+    const result = await invoke("launch_fabric_client", {
+      versionId: version.id,
+      versionPath: version.path,
+      minecraftVersion: version.minecraftVersion || version.inheritsFrom || version.id,
+      loader: version.loader,
+    });
+
+    showToast("Запуск", result.message || "Профиль Laminari подготовлен.");
+  } catch (error) {
+    showToast("Запуск", String(error));
+  }
 });
 
 renderVersions();
+refreshGameEnvironment();
 
 document.getElementById("minimize-button").addEventListener("click", async () => {
   try { await currentWindow?.minimize(); } catch (error) { showToast("Окно", String(error)); }

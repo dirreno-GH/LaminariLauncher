@@ -138,7 +138,7 @@
         </div>
 
         <div class="window-controls">
-          <div class="version-pill">BETA 0.5.0</div>
+          <div class="version-pill">BETA 0.6.0</div>
           <button id="minimize-button" class="window-button" aria-label="Свернуть">—</button>
           <button id="maximize-button" class="window-button" aria-label="Развернуть">□</button>
           <button id="close-button" class="window-button close" aria-label="Закрыть">×</button>
@@ -188,6 +188,9 @@
               <button id="import-button" class="secondary-button">
                 Импортировать версию
               </button>
+              <button id="download-mod-button" class="secondary-button">
+                Скачать мод
+              </button>
             </div>
           </div>
         </div>
@@ -202,22 +205,22 @@
             <p>импортированных версий</p>
           </button>
 
-          <div class="dashboard-card">
+          <button id="game-folder-card" class="dashboard-card clickable">
             <div class="card-topline">
-              <span>JAVA</span>
-              <span class="mini-state">СКОРО</span>
+              <span>ПАПКА ИГРЫ</span>
+              <span>↗</span>
             </div>
-            <strong>Auto</strong>
-            <p>автоматический выбор Java</p>
-          </div>
+            <strong id="game-folder-state">Готова</strong>
+            <p id="game-folder-path">Laminari / Fabric 1.21.11</p>
+          </button>
 
           <div class="dashboard-card">
             <div class="card-topline">
-              <span>ПАМЯТЬ</span>
-              <span class="mini-state">RAM</span>
+              <span>КЛИЕНТ</span>
+              <span id="client-mod-state" class="mini-state">НЕ УСТАНОВЛЕН</span>
             </div>
-            <strong>4 GB</strong>
-            <p>будет настраиваться для профиля</p>
+            <strong>1.21.11</strong>
+            <p>Fabric · Laminari Client + Fabric API</p>
           </div>
         </div>
       </section>

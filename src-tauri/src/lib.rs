@@ -2,10 +2,11 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use reqwest::header::{HeaderValue, CONTENT_TYPE, COOKIE, SET_COOKIE};
 use reqwest::{Client, StatusCode, Url};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 use tauri_plugin_dialog::DialogExt;
 
@@ -14,7 +15,7 @@ const SESSION_COOKIE_NAME: &str = "__Host-laminari_session";
 
 static SESSION_COOKIE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ImportedVersion {
     id: String,
@@ -25,6 +26,24 @@ struct ImportedVersion {
     inherits_from: Option<String>,
     loader: String,
     release_type: String,
+    minecraft_version: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GameEnvironment {
+    path: String,
+    mods_path: String,
+    client_mod_installed: bool,
+    fabric_api_installed: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LaunchResult {
+    message: String,
+    game_dir: String,
+    profile_file: String,
 }
 
 #[derive(Serialize)]
@@ -216,6 +235,18 @@ fn find_version_jar(folder: &PathBuf, id: &str) -> Option<PathBuf> {
     None
 }
 
+fn detect_minecraft_version(version_id: &str, data: &Value) -> String {
+    if let Some(base) = data.get("inheritsFrom").and_then(Value::as_str) {
+        return base.to_string();
+    }
+
+    if version_id.contains("1.21.11") {
+        return "1.21.11".to_string();
+    }
+
+    version_id.to_string()
+}
+
 fn detect_loader(version_id: &str, data: &Value) -> String {
     let mut haystack = version_id.to_lowercase();
 
@@ -309,6 +340,7 @@ async fn import_minecraft_version(app: tauri::AppHandle) -> Result<Option<Import
         .map(|path| path.to_string_lossy().to_string());
 
     let loader = detect_loader(&id, &data);
+    let minecraft_version = detect_minecraft_version(&id, &data);
 
     Ok(Some(ImportedVersion {
         id,
@@ -319,7 +351,272 @@ async fn import_minecraft_version(app: tauri::AppHandle) -> Result<Option<Import
         inherits_from,
         loader,
         release_type,
+        minecraft_version,
     }))
+}
+
+fn laminari_game_dir() -> Result<PathBuf, String> {
+    let appdata = std::env::var_os("APPDATA")
+        .ok_or_else(|| "Windows APPDATA не найден.".to_string())?;
+
+    Ok(PathBuf::from(appdata)
+        .join("LaminariLauncher")
+        .join("game")
+        .join("fabric-1.21.11"))
+}
+
+fn ensure_game_directories() -> Result<PathBuf, String> {
+    let root = laminari_game_dir()?;
+
+    for folder in [
+        "mods",
+        "config",
+        "resourcepacks",
+        "shaderpacks",
+        "saves",
+        "screenshots",
+        "logs",
+        "crash-reports",
+    ] {
+        fs::create_dir_all(root.join(folder))
+            .map_err(|error| format!("Не удалось создать папку {folder}: {error}"))?;
+    }
+
+    Ok(root)
+}
+
+fn mod_exists(mods: &PathBuf, prefix: &str) -> bool {
+    fs::read_dir(mods)
+        .ok()
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .map(|name| name.starts_with(prefix) && name.ends_with(".jar"))
+                .unwrap_or(false)
+        })
+}
+
+fn remove_old_mods(mods: &PathBuf, prefix: &str) {
+    if let Ok(entries) = fs::read_dir(mods) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let remove = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .map(|name| name.starts_with(prefix) && name.ends_with(".jar"))
+                .unwrap_or(false);
+
+            if remove {
+                let _ = fs::remove_file(path);
+            }
+        }
+    }
+}
+
+async fn download_jar(url: &str, cookie: Option<String>) -> Result<Vec<u8>, String> {
+    let mut request = client()?.get(url);
+
+    if let Some(cookie) = cookie {
+        request = request.header(COOKIE, cookie);
+    }
+
+    let response = request
+        .send()
+        .await
+        .map_err(|error| format!("Ошибка скачивания: {error}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Сервер вернул ошибку {}", response.status()));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| format!("Не удалось прочитать JAR: {error}"))?
+        .to_vec();
+
+    if bytes.len() < 4 || bytes[0..4] != [0x50, 0x4b, 0x03, 0x04] {
+        return Err("Скачанный файл не является корректным JAR.".to_string());
+    }
+
+    Ok(bytes)
+}
+
+#[tauri::command]
+fn game_environment() -> Result<GameEnvironment, String> {
+    let root = ensure_game_directories()?;
+    let mods = root.join("mods");
+
+    Ok(GameEnvironment {
+        path: root.to_string_lossy().to_string(),
+        mods_path: mods.to_string_lossy().to_string(),
+        client_mod_installed: mod_exists(&mods, "LaminariClient"),
+        fabric_api_installed: mod_exists(&mods, "fabric-api"),
+    })
+}
+
+#[tauri::command]
+async fn download_client_mod() -> Result<GameEnvironment, String> {
+    const FABRIC_API_URL: &str = "https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.141.6+1.21.11/fabric-api-0.141.6+1.21.11.jar";
+
+    let root = ensure_game_directories()?;
+    let mods = root.join("mods");
+    let cookie = current_cookie()?;
+
+    let client_bytes = download_jar(
+        &format!("{API_BASE}/download/beta"),
+        Some(cookie),
+    )
+    .await?;
+
+    let fabric_api_bytes = download_jar(FABRIC_API_URL, None).await?;
+
+    remove_old_mods(&mods, "LaminariClient");
+    remove_old_mods(&mods, "fabric-api");
+
+    fs::write(mods.join("LaminariClient-BETA.jar"), client_bytes)
+        .map_err(|error| format!("Не удалось сохранить Laminari Client: {error}"))?;
+
+    fs::write(
+        mods.join("fabric-api-0.141.6+1.21.11.jar"),
+        fabric_api_bytes,
+    )
+    .map_err(|error| format!("Не удалось сохранить Fabric API: {error}"))?;
+
+    game_environment()
+}
+
+#[tauri::command]
+fn open_game_folder() -> Result<(), String> {
+    let root = ensure_game_directories()?;
+
+    Command::new("explorer.exe")
+        .arg(&root)
+        .spawn()
+        .map_err(|error| format!("Не удалось открыть папку игры: {error}"))?;
+
+    Ok(())
+}
+
+fn minecraft_root_from_version(version_path: &str) -> Result<PathBuf, String> {
+    let version_dir = PathBuf::from(version_path);
+    let versions_dir = version_dir
+        .parent()
+        .ok_or_else(|| "Не удалось определить папку versions.".to_string())?;
+
+    versions_dir
+        .parent()
+        .map(PathBuf::from)
+        .ok_or_else(|| "Не удалось определить корень .minecraft.".to_string())
+}
+
+fn launcher_profile_path(root: &PathBuf) -> Result<PathBuf, String> {
+    let normal = root.join("launcher_profiles.json");
+    if normal.is_file() {
+        return Ok(normal);
+    }
+
+    let store = root.join("launcher_profiles_microsoft_store.json");
+    if store.is_file() {
+        return Ok(store);
+    }
+
+    Err("Не найден профиль официального Minecraft Launcher. Открой официальный лаунчер и войди в Microsoft-аккаунт хотя бы один раз.".to_string())
+}
+
+fn write_laminari_launcher_profile(
+    profile_path: &PathBuf,
+    version_id: &str,
+    game_dir: &PathBuf,
+) -> Result<(), String> {
+    let text = fs::read_to_string(profile_path)
+        .map_err(|error| format!("Не удалось прочитать профиль Minecraft Launcher: {error}"))?;
+
+    let mut root: Value = serde_json::from_str(&text)
+        .map_err(|error| format!("Профиль Minecraft Launcher повреждён: {error}"))?;
+
+    if !root.is_object() {
+        return Err("Некорректный launcher_profiles JSON.".to_string());
+    }
+
+    let backup = profile_path.with_extension("json.laminari.bak");
+    if !backup.exists() {
+        let _ = fs::copy(profile_path, &backup);
+    }
+
+    let object = root
+        .as_object_mut()
+        .ok_or_else(|| "Некорректный launcher_profiles JSON.".to_string())?;
+
+    let profiles = object
+        .entry("profiles")
+        .or_insert_with(|| json!({}));
+
+    let profiles_object = profiles
+        .as_object_mut()
+        .ok_or_else(|| "Поле profiles в launcher_profiles повреждено.".to_string())?;
+
+    profiles_object.insert(
+        "laminari-client-1-21-11".to_string(),
+        json!({
+            "name": "Laminari Client",
+            "type": "custom",
+            "lastVersionId": version_id,
+            "gameDir": game_dir.to_string_lossy().to_string()
+        }),
+    );
+
+    object.insert(
+        "selectedProfile".to_string(),
+        Value::String("laminari-client-1-21-11".to_string()),
+    );
+
+    let output = serde_json::to_string_pretty(&root)
+        .map_err(|error| format!("Не удалось сохранить профиль лаунчера: {error}"))?;
+
+    fs::write(profile_path, output)
+        .map_err(|error| format!("Не удалось обновить профиль Minecraft Launcher: {error}"))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn launch_fabric_client(
+    version_id: String,
+    version_path: String,
+    minecraft_version: String,
+    loader: String,
+) -> Result<LaunchResult, String> {
+    if loader != "Fabric" || minecraft_version != "1.21.11" {
+        return Err("Laminari Client запускается только на Fabric 1.21.11.".to_string());
+    }
+
+    let root = ensure_game_directories()?;
+    let mods = root.join("mods");
+
+    if !mod_exists(&mods, "LaminariClient") || !mod_exists(&mods, "fabric-api") {
+        return Err("Сначала установи Laminari Client кнопкой «Скачать мод».".to_string());
+    }
+
+    let minecraft_root = minecraft_root_from_version(&version_path)?;
+    let profile_path = launcher_profile_path(&minecraft_root)?;
+
+    write_laminari_launcher_profile(&profile_path, &version_id, &root)?;
+
+    Command::new("cmd")
+        .args(["/C", "start", "", "minecraft://"])
+        .spawn()
+        .map_err(|error| format!("Не удалось открыть Minecraft Launcher: {error}"))?;
+
+    Ok(LaunchResult {
+        message: "Профиль Laminari Client подготовлен и официальный Minecraft Launcher открыт. Для запуска используется только Fabric 1.21.11.".to_string(),
+        game_dir: root.to_string_lossy().to_string(),
+        profile_file: profile_path.to_string_lossy().to_string(),
+    })
 }
 
 #[tauri::command]
