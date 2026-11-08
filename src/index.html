@@ -169,18 +169,77 @@
       </section>
 
       <section id="messenger-page" class="page">
-        <div class="empty-page">
-          <span>МЕССЕНДЖЕР</span>
-          <h2>Сообщения внутри Laminari.</h2>
-          <p>Здесь появятся список друзей, личные чаты, уведомления и быстрый переход к профилям игроков.</p>
+        <div class="messenger-layout">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">МЕССЕНДЖЕР</span>
+              <h2>Друзья</h2>
+              <p>Найди друга по нику или выбери его из списка ниже.</p>
+            </div>
+            <button id="add-friend-button" class="secondary-button small-button">+ Добавить друга</button>
+          </div>
+
+          <div class="friend-search">
+            <span class="search-icon">⌕</span>
+            <input id="friend-search-input" type="text" autocomplete="off" placeholder="Поиск друзей...">
+          </div>
+
+          <div class="friends-header">
+            <span>ТВОИ ДРУЗЬЯ</span>
+            <span id="friends-count">0</span>
+          </div>
+
+          <div id="friends-list" class="friends-list"></div>
+
+          <div id="friends-empty" class="friends-empty">
+            <div class="empty-avatar">+</div>
+            <strong>Список друзей пуст</strong>
+            <span>Нажми «Добавить друга», чтобы добавить первый локальный контакт.</span>
+          </div>
         </div>
       </section>
 
       <section id="profile-page" class="page">
-        <div class="empty-page">
-          <span>ПРОФИЛЬ</span>
-          <h2>Твой профиль Laminari.</h2>
-          <p>Здесь будут ник, аватар, статус, роль, рамка профиля и настройки аккаунта.</p>
+        <div class="profile-layout">
+          <div class="profile-preview">
+            <span class="eyebrow">ТВОЙ ПРОФИЛЬ</span>
+            <div class="profile-avatar" id="profile-avatar">D</div>
+            <strong id="profile-preview-name">dirreno</strong>
+            <span id="profile-preview-role" class="profile-role">Игрок</span>
+            <p id="profile-preview-status">В Laminari</p>
+          </div>
+
+          <div class="profile-editor">
+            <span class="eyebrow">НАСТРОЙКИ ПРОФИЛЯ</span>
+            <h2>Настрой профиль.</h2>
+
+            <label class="profile-field">
+              <span>НИК</span>
+              <input id="profile-name-input" maxlength="24" placeholder="Твой ник">
+            </label>
+
+            <label class="profile-field">
+              <span>СТАТУС</span>
+              <input id="profile-status-input" maxlength="60" placeholder="Например: Играю в Minecraft">
+            </label>
+
+            <label class="profile-field">
+              <span>РОЛЬ</span>
+              <select id="profile-role-input">
+                <option value="Игрок">Игрок</option>
+                <option value="Media">Media</option>
+                <option value="TikTok">TikTok</option>
+                <option value="YouTube">YouTube</option>
+              </select>
+            </label>
+
+            <button id="save-profile-button" class="primary-button profile-save-button">
+              <span>Сохранить профиль</span>
+              <span class="button-arrow">→</span>
+            </button>
+
+            <span class="profile-note">Пока профиль хранится только на этом ПК. Серверную синхронизацию добавим отдельно.</span>
+          </div>
         </div>
       </section>
 

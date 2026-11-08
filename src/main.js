@@ -1,6 +1,6 @@
 const tauri = window.__TAURI__;
 const invoke = tauri?.core?.invoke;
-const currentWindow = tauri?.window?.getCurrentWindow?.();
+const currentWindow = tauri?.window?.getCurrentWindow ? tauri.window.getCurrentWindow() : null;
 
 const pages = {
   home: document.getElementById("home-page"),
@@ -28,7 +28,21 @@ const toastMessage = document.getElementById("toast-message");
 const backendStatus = document.getElementById("backend-status");
 const runtimeVersion = document.getElementById("runtime-version");
 
+const profileNameInput = document.getElementById("profile-name-input");
+const profileStatusInput = document.getElementById("profile-status-input");
+const profileRoleInput = document.getElementById("profile-role-input");
+const profilePreviewName = document.getElementById("profile-preview-name");
+const profilePreviewStatus = document.getElementById("profile-preview-status");
+const profilePreviewRole = document.getElementById("profile-preview-role");
+const profileAvatar = document.getElementById("profile-avatar");
+
+const friendSearchInput = document.getElementById("friend-search-input");
+const friendsList = document.getElementById("friends-list");
+const friendsEmpty = document.getElementById("friends-empty");
+const friendsCount = document.getElementById("friends-count");
+
 let toastTimer;
+let friends = loadFriends();
 
 function showToast(title, message) {
   clearTimeout(toastTimer);
@@ -78,15 +92,140 @@ document.getElementById("play-button").addEventListener("click", () => {
 });
 
 document.getElementById("minimize-button").addEventListener("click", async () => {
-  await currentWindow?.minimize();
+  try {
+    await currentWindow?.minimize();
+  } catch (error) {
+    showToast("Окно", "Не удалось свернуть: " + String(error));
+  }
 });
 
 document.getElementById("maximize-button").addEventListener("click", async () => {
-  await currentWindow?.toggleMaximize();
+  try {
+    await currentWindow?.toggleMaximize();
+  } catch (error) {
+    showToast("Окно", "Не удалось изменить размер: " + String(error));
+  }
 });
 
 document.getElementById("close-button").addEventListener("click", async () => {
-  await currentWindow?.close();
+  try {
+    await currentWindow?.close();
+  } catch (error) {
+    showToast("Окно", "Не удалось закрыть: " + String(error));
+  }
+});
+
+function loadProfile() {
+  const saved = JSON.parse(localStorage.getItem("laminari_profile") || "{}");
+  const profile = {
+    name: saved.name || "dirreno",
+    status: saved.status || "В Laminari",
+    role: saved.role || "Игрок",
+  };
+
+  profileNameInput.value = profile.name;
+  profileStatusInput.value = profile.status;
+  profileRoleInput.value = profile.role;
+  renderProfile(profile);
+}
+
+function renderProfile(profile) {
+  profilePreviewName.textContent = profile.name;
+  profilePreviewStatus.textContent = profile.status;
+  profilePreviewRole.textContent = profile.role;
+  profileAvatar.textContent = (profile.name.trim()[0] || "L").toUpperCase();
+}
+
+document.getElementById("save-profile-button").addEventListener("click", () => {
+  const profile = {
+    name: profileNameInput.value.trim() || "dirreno",
+    status: profileStatusInput.value.trim() || "В Laminari",
+    role: profileRoleInput.value,
+  };
+
+  localStorage.setItem("laminari_profile", JSON.stringify(profile));
+  renderProfile(profile);
+  showToast("Профиль", "Профиль сохранён на этом ПК.");
+});
+
+function loadFriends() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("laminari_friends") || "[]");
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFriends() {
+  localStorage.setItem("laminari_friends", JSON.stringify(friends));
+}
+
+function renderFriends(filter = "") {
+  const query = filter.trim().toLowerCase();
+  const visibleFriends = friends.filter((friend) => friend.name.toLowerCase().includes(query));
+
+  friendsList.innerHTML = "";
+  friendsCount.textContent = String(friends.length);
+  friendsEmpty.style.display = visibleFriends.length ? "none" : "flex";
+
+  if (!visibleFriends.length && query) {
+    friendsEmpty.querySelector("strong").textContent = "Ничего не найдено";
+    friendsEmpty.querySelector("span").textContent = "Попробуй другой ник.";
+  } else if (!friends.length) {
+    friendsEmpty.querySelector("strong").textContent = "Список друзей пуст";
+    friendsEmpty.querySelector("span").textContent = "Нажми «Добавить друга», чтобы добавить первый локальный контакт.";
+  }
+
+  visibleFriends.forEach((friend) => {
+    const card = document.createElement("button");
+    card.className = "friend-card";
+    card.innerHTML = `
+      <span class="friend-avatar">${escapeHtml((friend.name[0] || "L").toUpperCase())}</span>
+      <span class="friend-copy">
+        <strong>${escapeHtml(friend.name)}</strong>
+        <span>${escapeHtml(friend.status || "Не в сети")}</span>
+      </span>
+      <span class="friend-action">›</span>
+    `;
+
+    card.addEventListener("click", () => {
+      showToast(friend.name, "Личный чат подключим следующим этапом.");
+    });
+
+    friendsList.appendChild(card);
+  });
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+friendSearchInput.addEventListener("input", () => renderFriends(friendSearchInput.value));
+
+document.getElementById("add-friend-button").addEventListener("click", () => {
+  const name = window.prompt("Введите ник друга:");
+  if (!name?.trim()) {
+    return;
+  }
+
+  const cleanName = name.trim().slice(0, 24);
+  const exists = friends.some((friend) => friend.name.toLowerCase() === cleanName.toLowerCase());
+
+  if (exists) {
+    showToast("Друзья", "Этот пользователь уже есть в списке.");
+    return;
+  }
+
+  friends.push({ name: cleanName, status: "Не в сети" });
+  saveFriends();
+  renderFriends(friendSearchInput.value);
+  showToast("Друзья", cleanName + " добавлен в список.");
 });
 
 async function initializeBackend() {
@@ -105,4 +244,6 @@ async function initializeBackend() {
   }
 }
 
+loadProfile();
+renderFriends();
 initializeBackend();
