@@ -6,6 +6,8 @@ const pages = {
   home: document.getElementById("home-page"),
   library: document.getElementById("library-page"),
   mods: document.getElementById("mods-page"),
+  messenger: document.getElementById("messenger-page"),
+  profile: document.getElementById("profile-page"),
   settings: document.getElementById("settings-page"),
 };
 
@@ -13,6 +15,8 @@ const pageNames = {
   home: "Главная",
   library: "Библиотека",
   mods: "Моды",
+  messenger: "Мессенджер",
+  profile: "Профиль",
   settings: "Настройки",
 };
 
