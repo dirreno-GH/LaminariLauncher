@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laminari Launcher</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">
+          <img src="./assets/laminari-mark.svg" alt="LC">
+        </div>
+        <div class="brand-copy">
+          <strong>LAMINARI</strong>
+          <span>LAUNCHER</span>
+        </div>
+      </div>
+
+      <div class="sidebar-label">ПРОСТРАНСТВО</div>
+
+      <nav class="navigation">
+        <button class="nav-item active" data-page="home">
+          <span class="nav-icon">⌂</span>
+          <span>Главная</span>
+        </button>
+        <button class="nav-item" data-page="library">
+          <span class="nav-icon">▦</span>
+          <span>Библиотека</span>
+        </button>
+        <button class="nav-item" data-page="mods">
+          <span class="nav-icon">◇</span>
+          <span>Моды</span>
+        </button>
+        <button class="nav-item" data-page="settings">
+          <span class="nav-icon">⚙</span>
+          <span>Настройки</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-spacer"></div>
+
+      <div class="runtime-card">
+        <div class="runtime-dot"></div>
+        <div>
+          <strong>LAMINARI CORE</strong>
+          <span id="runtime-version">Tauri + Rust</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="titlebar" data-tauri-drag-region>
+        <div class="titlebar-copy" data-tauri-drag-region>
+          <strong id="page-title">Главная</strong>
+          <span>LAMINARI / DESKTOP</span>
+        </div>
+
+        <div class="window-controls">
+          <div class="version-pill">BETA 0.1</div>
+          <button id="minimize-button" class="window-button" aria-label="Свернуть">—</button>
+          <button id="maximize-button" class="window-button" aria-label="Развернуть">□</button>
+          <button id="close-button" class="window-button close" aria-label="Закрыть">×</button>
+        </div>
+      </header>
+
+      <section id="home-page" class="page active-page">
+        <div class="home-heading">
+          <div>
+            <span class="eyebrow">LAMINARI EXPERIENCE</span>
+            <h1>Твой Minecraft.<br><span>В твоём стиле.</span></h1>
+          </div>
+          <div class="status-pill">
+            <span class="status-dot"></span>
+            <span id="backend-status">Проверка Rust…</span>
+          </div>
+        </div>
+
+        <div class="hero-card">
+          <div class="hero-grid"></div>
+          <div class="hero-orbit orbit-one"></div>
+          <div class="hero-orbit orbit-two"></div>
+          <div class="hero-watermark">LC</div>
+
+          <div class="hero-content">
+            <div class="client-heading">
+              <div class="client-logo">
+                <img src="./assets/laminari-mark.svg" alt="Laminari Client">
+              </div>
+              <div>
+                <span>АКТИВНЫЙ ПРОФИЛЬ</span>
+                <strong id="profile-name">Laminari Client</strong>
+              </div>
+            </div>
+
+            <div class="hero-copy">
+              <span class="hero-label">LAMINARI CLIENT</span>
+              <h2>Один лаунчер.<br>Все твои сборки.</h2>
+              <p>Импортируй существующий Minecraft, управляй профилями и готовь клиент к запуску из одного чистого интерфейса.</p>
+            </div>
+
+            <div class="hero-actions">
+              <button id="play-button" class="primary-button">
+                <span>Играть</span>
+                <span class="button-arrow">→</span>
+              </button>
+              <button id="import-button" class="secondary-button">
+                Импортировать сборку
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-row">
+          <button id="library-card" class="dashboard-card clickable">
+            <div class="card-topline">
+              <span>БИБЛИОТЕКА</span>
+              <span>↗</span>
+            </div>
+            <strong>0</strong>
+            <p>импортированных профилей</p>
+          </button>
+
+          <div class="dashboard-card">
+            <div class="card-topline">
+              <span>JAVA</span>
+              <span class="mini-state">СКОРО</span>
+            </div>
+            <strong>Auto</strong>
+            <p>автоматический выбор Java</p>
+          </div>
+
+          <div class="dashboard-card">
+            <div class="card-topline">
+              <span>ПАМЯТЬ</span>
+              <span class="mini-state">RAM</span>
+            </div>
+            <strong>4 GB</strong>
+            <p>будет настраиваться для профиля</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="library-page" class="page">
+        <div class="empty-page">
+          <span>БИБЛИОТЕКА</span>
+          <h2>Здесь появятся твои сборки.</h2>
+          <p>Следующим этапом Laminari научится импортировать существующие папки Minecraft в отдельные профили.</p>
+          <button class="primary-button compact" id="library-import-button">Импортировать сборку</button>
+        </div>
+      </section>
+
+      <section id="mods-page" class="page">
+        <div class="empty-page">
+          <span>МОДЫ</span>
+          <h2>Управление модами будет здесь.</h2>
+          <p>После импорта профиля добавим просмотр, включение, отключение и обновление модов.</p>
+        </div>
+      </section>
+
+      <section id="settings-page" class="page">
+        <div class="empty-page">
+          <span>НАСТРОЙКИ</span>
+          <h2>Java, RAM и игровые папки.</h2>
+          <p>Эта вкладка будет отвечать за Java, память, пути, обновления и параметры самого лаунчера.</p>
+        </div>
+      </section>
+
+      <div id="toast" class="toast">
+        <div class="toast-dot"></div>
+        <div>
+          <strong id="toast-title">Laminari</strong>
+          <span id="toast-message"></span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
