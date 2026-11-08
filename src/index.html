@@ -138,7 +138,7 @@
         </div>
 
         <div class="window-controls">
-          <div class="version-pill">BETA 0.6.0</div>
+          <div id="app-version-pill" class="version-pill">BETA 0.7.0</div>
           <button id="minimize-button" class="window-button" aria-label="Свернуть">—</button>
           <button id="maximize-button" class="window-button" aria-label="Развернуть">□</button>
           <button id="close-button" class="window-button close" aria-label="Закрыть">×</button>
@@ -451,10 +451,35 @@
       </section>
 
       <section id="settings-page" class="page">
-        <div class="empty-page">
-          <span>НАСТРОЙКИ</span>
-          <h2>Java, RAM и игровые папки.</h2>
-          <p>Эта вкладка будет отвечать за Java, память, пути, обновления и параметры самого лаунчера.</p>
+        <div class="settings-layout">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">НАСТРОЙКИ</span>
+              <h2>Настройки Laminari</h2>
+              <p>Версия приложения, обновления и игровые параметры.</p>
+            </div>
+          </div>
+
+          <div class="settings-grid">
+            <section class="settings-card">
+              <span class="eyebrow">ПРИЛОЖЕНИЕ</span>
+              <strong id="settings-app-version">Laminari Launcher 0.7.0</strong>
+              <p id="settings-update-status">Автоматическая проверка обновлений включена.</p>
+              <button id="check-update-button" class="secondary-button settings-button">Проверить обновления</button>
+            </section>
+
+            <section class="settings-card">
+              <span class="eyebrow">MINECRAFT</span>
+              <strong>Fabric 1.21.11</strong>
+              <p>Единственная поддерживаемая версия Laminari Client.</p>
+            </section>
+
+            <section class="settings-card">
+              <span class="eyebrow">JAVA</span>
+              <strong>Java 21+</strong>
+              <p>Laminari Client для Minecraft 1.21.11 требует Java 21 или новее.</p>
+            </section>
+          </div>
         </div>
       </section>
 
@@ -466,6 +491,29 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <div id="update-modal" class="update-modal hidden">
+    <div class="update-dialog">
+      <div class="update-icon">↻</div>
+      <span class="eyebrow">LAMINARI UPDATE</span>
+      <h2>Вышло обновление <span id="update-version">0.0.0</span></h2>
+      <p>Вы хотите обновить лаунчер?</p>
+      <div id="update-progress" class="update-progress hidden">
+        <div class="update-progress-line"></div>
+        <span>Скачивание новой версии...</span>
+      </div>
+      <div class="update-actions">
+        <button id="update-now-button" class="primary-button">
+          <span>Да</span>
+          <span>→</span>
+        </button>
+        <button id="update-later-button" class="secondary-button">
+          Напомнить позже <small>через 10 минут</small>
+        </button>
+      </div>
+      <div id="update-error" class="update-error"></div>
+    </div>
   </div>
 
   <script type="module" src="./main.js"></script>

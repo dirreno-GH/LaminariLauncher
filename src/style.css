@@ -2420,3 +2420,164 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+
+.settings-layout {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-top: 18px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settings-card {
+  display: flex;
+  min-height: 190px;
+  padding: 20px;
+  flex-direction: column;
+  background: #0a0a0a;
+  border: 1px solid #222;
+  border-radius: 20px;
+}
+
+.settings-card > strong {
+  margin-top: 18px;
+  font-size: 18px;
+  letter-spacing: -.5px;
+}
+
+.settings-card > p {
+  margin: 8px 0 0;
+  color: #707070;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.settings-button {
+  margin-top: auto;
+}
+
+.update-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(0,0,0,.78);
+  backdrop-filter: blur(14px);
+}
+
+.update-dialog {
+  width: min(520px, 100%);
+  padding: 30px;
+  background:
+    radial-gradient(circle at 50% 0, rgba(255,255,255,.07), transparent 35%),
+    #090909;
+  border: 1px solid #2d2d2d;
+  border-radius: 26px;
+  box-shadow: 0 35px 120px rgba(0,0,0,.75);
+  text-align: center;
+}
+
+.update-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 18px;
+  color: #fff;
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 18px;
+  font-size: 27px;
+}
+
+.update-dialog h2 {
+  margin: 10px 0 7px;
+  font-size: 25px;
+  letter-spacing: -1px;
+}
+
+.update-dialog h2 span {
+  color: #fff;
+}
+
+.update-dialog > p {
+  margin: 0;
+  color: #777;
+  font-size: 10px;
+}
+
+.update-actions {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 9px;
+  margin-top: 24px;
+}
+
+.update-actions .primary-button,
+.update-actions .secondary-button {
+  width: 100%;
+}
+
+.update-actions small {
+  display: block;
+  margin-top: 2px;
+  color: #666;
+  font-size: 7px;
+}
+
+.update-progress {
+  margin-top: 20px;
+  padding: 12px;
+  background: #0d0d0d;
+  border: 1px solid #242424;
+  border-radius: 12px;
+}
+
+.update-progress-line {
+  position: relative;
+  height: 3px;
+  margin-bottom: 9px;
+  overflow: hidden;
+  background: #222;
+  border-radius: 999px;
+}
+
+.update-progress-line::after {
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  content: "";
+  background: #fff;
+  border-radius: inherit;
+  animation: update-loading 1s ease-in-out infinite alternate;
+}
+
+.update-progress span {
+  color: #888;
+  font-size: 8px;
+}
+
+.update-error {
+  min-height: 16px;
+  margin-top: 12px;
+  color: #ff9b9b;
+  font-size: 8px;
+}
+
+@keyframes update-loading {
+  from { transform: translateX(-20%); }
+  to { transform: translateX(170%); }
+}
+
+@media (max-width: 900px) {
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}

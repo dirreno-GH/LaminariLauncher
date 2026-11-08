@@ -8,6 +8,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use tauri_plugin_dialog::DialogExt;
 
 const API_BASE: &str = "https://laminari-client.laminari.workers.dev";
@@ -44,6 +46,15 @@ struct LaunchResult {
     message: String,
     game_dir: String,
     profile_file: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateInfo {
+    current_version: String,
+    latest_version: String,
+    available: bool,
+    download_url: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -619,6 +630,179 @@ fn launch_fabric_client(
     })
 }
 
+fn version_parts(version: &str) -> Vec<u64> {
+    version
+        .trim_start_matches('v')
+        .split('.')
+        .map(|part| {
+            part.chars()
+                .take_while(|ch| ch.is_ascii_digit())
+                .collect::<String>()
+                .parse::<u64>()
+                .unwrap_or(0)
+        })
+        .collect()
+}
+
+fn version_is_newer(latest: &str, current: &str) -> bool {
+    let mut latest_parts = version_parts(latest);
+    let mut current_parts = version_parts(current);
+    let length = latest_parts.len().max(current_parts.len());
+
+    latest_parts.resize(length, 0);
+    current_parts.resize(length, 0);
+
+    latest_parts > current_parts
+}
+
+#[tauri::command]
+async fn check_for_updates() -> Result<UpdateInfo, String> {
+    const RELEASE_API: &str = "https://api.github.com/repos/dirreno-GH/LaminariLauncher/releases/latest";
+    const ASSET_NAME: &str = "LaminariLauncher.exe";
+
+    let response = client()?
+        .get(RELEASE_API)
+        .send()
+        .await
+        .map_err(|error| format!("Не удалось проверить обновления: {error}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "GitHub вернул ошибку при проверке обновлений: {}",
+            response.status()
+        ));
+    }
+
+    let release = response
+        .json::<Value>()
+        .await
+        .map_err(|error| format!("Не удалось прочитать данные обновления: {error}"))?;
+
+    let latest_version = release
+        .get("tag_name")
+        .and_then(Value::as_str)
+        .unwrap_or(env!("CARGO_PKG_VERSION"))
+        .trim_start_matches('v')
+        .to_string();
+
+    let download_url = release
+        .get("assets")
+        .and_then(Value::as_array)
+        .and_then(|assets| {
+            assets.iter().find_map(|asset| {
+                let name = asset.get("name").and_then(Value::as_str)?;
+                if name != ASSET_NAME {
+                    return None;
+                }
+                asset
+                    .get("browser_download_url")
+                    .and_then(Value::as_str)
+                    .map(ToString::to_string)
+            })
+        });
+
+    let current_version = env!("CARGO_PKG_VERSION").to_string();
+    let available = version_is_newer(&latest_version, &current_version) && download_url.is_some();
+
+    Ok(UpdateInfo {
+        current_version,
+        latest_version,
+        available,
+        download_url,
+    })
+}
+
+fn escape_powershell_single_quoted(value: &str) -> String {
+    value.replace(''', "''")
+}
+
+#[tauri::command]
+async fn install_launcher_update(download_url: String) -> Result<(), String> {
+    const ALLOWED_PREFIX: &str =
+        "https://github.com/dirreno-GH/LaminariLauncher/releases/download/";
+
+    if !download_url.starts_with(ALLOWED_PREFIX)
+        || !download_url.ends_with("/LaminariLauncher.exe")
+    {
+        return Err("Источник обновления не прошёл проверку.".to_string());
+    }
+
+    let response = client()?
+        .get(&download_url)
+        .send()
+        .await
+        .map_err(|error| format!("Не удалось скачать обновление: {error}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "GitHub вернул ошибку при скачивании: {}",
+            response.status()
+        ));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| format!("Не удалось прочитать обновление: {error}"))?;
+
+    if bytes.len() < 1024 * 1024 || bytes.get(0..2) != Some(&[0x4d, 0x5a]) {
+        return Err("Скачанный файл не похож на Windows EXE.".to_string());
+    }
+
+    let current_exe = std::env::current_exe()
+        .map_err(|error| format!("Не удалось определить текущий EXE: {error}"))?;
+
+    let parent = current_exe
+        .parent()
+        .ok_or_else(|| "Не удалось определить папку лаунчера.".to_string())?;
+
+    let update_exe = parent.join("LaminariLauncher.update.exe");
+
+    fs::write(&update_exe, &bytes)
+        .map_err(|error| format!("Не удалось сохранить обновление: {error}"))?;
+
+    let pid = std::process::id();
+    let temp_dir = std::env::temp_dir();
+    let script_path = temp_dir.join(format!("laminari-update-{pid}.ps1"));
+
+    let script = format!(
+        "$ErrorActionPreference='Stop'\n\
+         Wait-Process -Id {pid} -ErrorAction SilentlyContinue\n\
+         Start-Sleep -Milliseconds 350\n\
+         Copy-Item -LiteralPath '{}' -Destination '{}' -Force\n\
+         Start-Process -FilePath '{}'\n\
+         Remove-Item -LiteralPath '{}' -Force -ErrorAction SilentlyContinue\n\
+         Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue\n",
+        escape_powershell_single_quoted(&update_exe.to_string_lossy()),
+        escape_powershell_single_quoted(&current_exe.to_string_lossy()),
+        escape_powershell_single_quoted(&current_exe.to_string_lossy()),
+        escape_powershell_single_quoted(&update_exe.to_string_lossy()),
+    );
+
+    fs::write(&script_path, script)
+        .map_err(|error| format!("Не удалось подготовить установщик обновления: {error}"))?;
+
+    let mut command = Command::new("powershell.exe");
+    command
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+        ])
+        .arg(&script_path);
+
+    #[cfg(target_os = "windows")]
+    command.creation_flags(0x08000000);
+
+    command
+        .spawn()
+        .map_err(|error| format!("Не удалось запустить установку обновления: {error}"))?;
+
+    Ok(())
+}
+
 #[tauri::command]
 async fn auth_login(username: String, password: String, totp: Option<String>) -> Result<Value, String> {
     let response = client()?
@@ -846,6 +1030,12 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             launcher_status,
             import_minecraft_version,
+            game_environment,
+            download_client_mod,
+            open_game_folder,
+            launch_fabric_client,
+            check_for_updates,
+            install_launcher_update,
             auth_login,
             auth_register,
             auth_logout,

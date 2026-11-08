@@ -47,6 +47,15 @@ const toastTitle = document.getElementById("toast-title");
 const toastMessage = document.getElementById("toast-message");
 const backendStatus = document.getElementById("backend-status");
 const runtimeVersion = document.getElementById("runtime-version");
+const appVersionPill = document.getElementById("app-version-pill");
+const settingsAppVersion = document.getElementById("settings-app-version");
+const settingsUpdateStatus = document.getElementById("settings-update-status");
+const updateModal = document.getElementById("update-modal");
+const updateVersion = document.getElementById("update-version");
+const updateNowButton = document.getElementById("update-now-button");
+const updateLaterButton = document.getElementById("update-later-button");
+const updateProgress = document.getElementById("update-progress");
+const updateError = document.getElementById("update-error");
 
 const profileStatusInput = document.getElementById("profile-status-input");
 const profileBioInput = document.getElementById("profile-bio-input");
@@ -101,6 +110,8 @@ let friendsRefreshTimer = null;
 let heartbeatTimer = null;
 let pendingReply = null;
 let lastSummaryMessageId = null;
+let pendingUpdate = null;
+let updateReminderTimer = null;
 
 function showToast(title, message) {
   clearTimeout(toastTimer);
@@ -1853,11 +1864,115 @@ function renderAdminUsers(users) {
   }
 }
 
+const UPDATE_REMINDER_KEY = "laminari_update_remind_after";
+const UPDATE_REMINDER_MS = 10 * 60 * 1000;
+
+function closeUpdateModal() {
+  updateModal.classList.add("hidden");
+  updateProgress.classList.add("hidden");
+  updateError.textContent = "";
+  updateNowButton.disabled = false;
+  updateLaterButton.disabled = false;
+}
+
+function scheduleUpdateReminder(delay) {
+  clearTimeout(updateReminderTimer);
+  updateReminderTimer = setTimeout(() => {
+    checkForUpdates(false).catch(() => {});
+  }, Math.max(1000, delay));
+}
+
+function showUpdateModal(update) {
+  pendingUpdate = update;
+  updateVersion.textContent = update.latestVersion;
+  updateError.textContent = "";
+  updateProgress.classList.add("hidden");
+  updateNowButton.disabled = false;
+  updateLaterButton.disabled = false;
+  updateModal.classList.remove("hidden");
+}
+
+async function checkForUpdates(manual = false) {
+  try {
+    const remindAfter = Number(localStorage.getItem(UPDATE_REMINDER_KEY) || 0);
+    const now = Date.now();
+
+    if (!manual && remindAfter > now) {
+      scheduleUpdateReminder(remindAfter - now);
+      return;
+    }
+
+    const update = await invoke("check_for_updates");
+
+    if (settingsUpdateStatus) {
+      settingsUpdateStatus.textContent = update.available
+        ? "Доступна версия " + update.latestVersion
+        : "Установлена последняя версия.";
+    }
+
+    if (update.available) {
+      localStorage.removeItem(UPDATE_REMINDER_KEY);
+      showUpdateModal(update);
+    } else if (manual) {
+      showToast("Обновления", "У тебя уже последняя версия " + update.currentVersion + ".");
+    }
+  } catch (error) {
+    if (manual) {
+      showToast("Обновления", String(error));
+    }
+    if (settingsUpdateStatus) {
+      settingsUpdateStatus.textContent = "Не удалось проверить обновления.";
+    }
+  }
+}
+
+updateLaterButton.addEventListener("click", () => {
+  const remindAt = Date.now() + UPDATE_REMINDER_MS;
+  localStorage.setItem(UPDATE_REMINDER_KEY, String(remindAt));
+  closeUpdateModal();
+  scheduleUpdateReminder(UPDATE_REMINDER_MS);
+  showToast("Обновления", "Напомню об обновлении через 10 минут.");
+});
+
+updateNowButton.addEventListener("click", async () => {
+  if (!pendingUpdate?.downloadUrl) {
+    updateError.textContent = "Ссылка на обновление недоступна.";
+    return;
+  }
+
+  updateNowButton.disabled = true;
+  updateLaterButton.disabled = true;
+  updateProgress.classList.remove("hidden");
+  updateError.textContent = "";
+
+  try {
+    await invoke("install_launcher_update", { downloadUrl: pendingUpdate.downloadUrl });
+    updateProgress.querySelector("span").textContent = "Обновление скачано. Перезапуск...";
+    setTimeout(async () => {
+      try {
+        await currentWindow?.close();
+      } catch {}
+    }, 250);
+  } catch (error) {
+    updateError.textContent = String(error);
+    updateProgress.classList.add("hidden");
+    updateNowButton.disabled = false;
+    updateLaterButton.disabled = false;
+  }
+});
+
+document.getElementById("check-update-button").addEventListener("click", () => {
+  checkForUpdates(true);
+});
+
 async function initializeBackend() {
   try {
     const status = await invoke("launcher_status");
     backendStatus.textContent = "СИСТЕМА ГОТОВА";
     runtimeVersion.textContent = `Rust · ${status.version}`;
+    appVersionPill.textContent = "BETA " + status.version;
+    settingsAppVersion.textContent = "Laminari Launcher " + status.version;
+    checkForUpdates(false);
   } catch (error) {
     backendStatus.textContent = "ОШИБКА BACKEND";
     authError.textContent = String(error);
