@@ -338,7 +338,7 @@ async fn api_upload(
 }
 
 #[tauri::command]
-async fn api_media(path: String) -> Result<Value, String> {
+async fn api_media(path: String, query: Option<Value>) -> Result<Value, String> {
     validate_api_path(&path)?;
 
     let allowed = [
@@ -347,6 +347,7 @@ async fn api_media(path: String) -> Result<Value, String> {
         "/api/social/sticker-media/",
         "/api/social/emoji-media/",
         "/api/social/group-media/",
+        "/api/social/qr",
     ];
 
     if !allowed.iter().any(|prefix| path.starts_with(prefix)) {
@@ -355,7 +356,7 @@ async fn api_media(path: String) -> Result<Value, String> {
 
     let cookie = current_cookie()?;
     let response = client()?
-        .get(format!("{API_BASE}{path}"))
+        .get(api_url(&path, &query.unwrap_or_else(|| json!({})))?)
         .header(COOKIE, cookie)
         .send()
         .await

@@ -2248,3 +2248,27 @@ button {
     display: none;
   }
 }
+
+
+.nav-badge {
+  display: grid;
+  place-items: center;
+  min-width: 19px;
+  height: 19px;
+  margin-left: auto;
+  padding: 0 5px;
+  color: #050505;
+  background: #fff;
+  border-radius: 999px;
+  font-size: 7px;
+  font-weight: 900;
+}
+
+.pinned-message:not(.hidden) {
+  cursor: pointer;
+}
+
+.pinned-message:hover {
+  color: #fff;
+  background: #141414;
+}

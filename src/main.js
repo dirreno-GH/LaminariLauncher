@@ -84,6 +84,7 @@ const typingIndicator = document.getElementById("typing-indicator");
 const pinnedMessage = document.getElementById("pinned-message");
 const hubContent = document.getElementById("hub-content");
 const adminHubTab = document.getElementById("admin-hub-tab");
+const messengerNavBadge = document.getElementById("messenger-nav-badge");
 
 let toastTimer;
 let friends = [];
@@ -96,6 +97,8 @@ let currentHub = "overview";
 let canManageRoles = false;
 let typingTimer = null;
 let messengerRefreshTimer = null;
+let pendingReply = null;
+let lastSummaryMessageId = null;
 
 function showToast(title, message) {
   clearTimeout(toastTimer);
@@ -149,7 +152,7 @@ async function apiUpload(path, file, query = {}) {
 }
 
 async function mediaData(path) {
-  const payload = await invoke("api_media", { path });
+  const payload = await invoke("api_media", { path, query: {} });
   return `data:${payload.mime};base64,${payload.data}`;
 }
 
@@ -509,7 +512,11 @@ async function refreshChat() {
   const payload = await apiGet("/api/messenger/messages", { userId: activeFriend.id });
   typingIndicator.textContent = payload.typing ? "печатает..." : "";
   pinnedMessage.classList.toggle("hidden", !payload.pinnedMessageId);
-  pinnedMessage.textContent = payload.pinnedMessageId ? "Закреплённое сообщение · нажми «Поиск», чтобы найти его" : "";
+  pinnedMessage.textContent = payload.pinnedMessageId ? "📌 Закреплённое сообщение · нажми, чтобы снять закрепление" : "";
+  pinnedMessage.onclick = payload.pinnedMessageId ? async () => {
+    await apiPost("/api/messenger/unpin", { targetId: activeFriend.id });
+    await refreshChat();
+  } : null;
   renderMessages(payload.messages || []);
 }
 
@@ -586,6 +593,16 @@ function renderMessages(messages) {
       actions.append(button);
     }
 
+    const replyAction = document.createElement("button");
+    replyAction.textContent = "↩";
+    replyAction.title = "Ответить";
+    replyAction.onclick = () => {
+      pendingReply = message;
+      showToast("Ответ", "Ответ на: " + (message.body || "вложение"));
+      chatInput.focus();
+    };
+    actions.append(replyAction);
+
     const pin = document.createElement("button");
     pin.textContent = "📌";
     pin.title = "Закрепить";
@@ -617,6 +634,28 @@ function renderMessages(messages) {
       alert(text || "Истории изменений нет.");
     };
     actions.append(history);
+
+    const hide = document.createElement("button");
+    hide.textContent = "⌫";
+    hide.title = "Удалить только у себя";
+    hide.onclick = async () => {
+      await apiPost("/api/messenger/delete-message", { targetId: activeFriend.id, messageId: message.id, scope: "me" });
+      await refreshChat();
+    };
+    actions.append(hide);
+
+    if (!message.fromMe) {
+      const report = document.createElement("button");
+      report.textContent = "!";
+      report.title = "Пожаловаться";
+      report.onclick = async () => {
+        const reason = prompt("Причина жалобы:");
+        if (!reason?.trim()) return;
+        await apiPost("/api/social/report", { targetId: activeFriend.id, messageId: message.id, reason: reason.trim() });
+        showToast("Жалоба", "Жалоба отправлена.");
+      };
+      actions.append(report);
+    }
 
     if (message.fromMe) {
       const edit = document.createElement("button");
@@ -694,7 +733,12 @@ async function sendMessage() {
   const body = chatInput.value.trim();
   if (!body) return;
 
-  await apiPost("/api/messenger/message", { targetId: activeFriend.id, body });
+  await apiPost("/api/messenger/message", {
+    targetId: activeFriend.id,
+    body,
+    replyToId: pendingReply?.id || null,
+  });
+  pendingReply = null;
   chatInput.value = "";
   await apiPost("/api/social/draft", { context: "direct", contextId: activeFriend.id, body: "" });
   await refreshChat();
@@ -827,6 +871,7 @@ function startMessengerRefresh() {
     if (!currentMe) return;
     try {
       await apiPost("/api/messenger/heartbeat", {});
+      await refreshMessengerSummary();
       if (activeFriend) await refreshChat();
       await loadRequests();
     } catch {}
@@ -1242,6 +1287,9 @@ async function loadHubSessions() {
   const payload = await apiGet("/api/social/sessions");
 
   hubContent.innerHTML = `
+    <div class="hub-actions-line">
+      <button id="logout-all-button" class="mini-button danger-mini">Выйти со всех устройств</button>
+    </div>
     <div class="hub-columns">
       <section class="hub-card">
         <div class="hub-card-head"><strong>Активные сессии</strong><span>${(payload.sessions || []).length}</span></div>
@@ -1253,6 +1301,20 @@ async function loadHubSessions() {
       </section>
     </div>
   `;
+
+  document.getElementById("logout-all-button").onclick = async () => {
+    if (!confirm("Выйти со всех устройств?")) return;
+    try {
+      await apiPost("/api/messenger/logout-all", {});
+    } catch {}
+    try {
+      await invoke("auth_logout");
+    } catch {}
+    stopMessengerRefresh();
+    authGate.classList.remove("hidden");
+    setAuthMode("login");
+    showToast("Laminari", "Все сессии завершены.");
+  };
 
   const sessionsList = document.getElementById("sessions-list");
   for (const session of payload.sessions || []) {
@@ -1291,6 +1353,7 @@ async function loadHubInvites() {
         <p class="hub-muted">Создай код, которым другой пользователь сможет добавить тебя в друзья.</p>
         <button id="create-invite-button" class="primary-button compact-action"><span>Создать код</span><span>+</span></button>
         <div id="invite-result" class="secret-box hidden"></div>
+        <button id="invite-qr-button" class="mini-button hidden">Показать QR</button>
       </section>
       <section class="hub-card">
         <div class="hub-card-head"><strong>Принять код</strong><span>INVITE</span></div>
@@ -1308,7 +1371,33 @@ async function loadHubInvites() {
     const payload = await apiPost("/api/social/invite/create", {});
     const box = document.getElementById("invite-result");
     box.classList.remove("hidden");
+    box.dataset.url = payload.url || "";
     box.textContent = "Код: " + payload.code;
+    document.getElementById("invite-qr-button").classList.remove("hidden");
+  };
+
+  document.getElementById("invite-qr-button").onclick = async () => {
+    const url = document.getElementById("invite-result").dataset.url;
+    if (!url) return;
+    try {
+      const payload = await invoke("api_media", { path: "/api/social/qr", query: { text: url } });
+      const overlay = document.createElement("div");
+      overlay.className = "media-overlay";
+      const box = document.createElement("div");
+      box.className = "media-box";
+      const close = document.createElement("button");
+      close.className = "media-close";
+      close.textContent = "×";
+      close.onclick = () => overlay.remove();
+      const image = document.createElement("img");
+      image.src = `data:${payload.mime};base64,${payload.data}`;
+      image.alt = "QR приглашения";
+      box.append(close, image);
+      overlay.append(box);
+      document.body.append(overlay);
+    } catch (error) {
+      showToast("QR", String(error));
+    }
   };
 
   document.getElementById("accept-invite-button").onclick = async () => {
