@@ -4,12 +4,28 @@ use reqwest::header::{HeaderValue, CONTENT_TYPE, COOKIE, SET_COOKIE};
 use reqwest::{Client, StatusCode, Url};
 use serde::Serialize;
 use serde_json::{json, Map, Value};
+use std::fs;
+use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
+use tauri_plugin_dialog::DialogExt;
 
 const API_BASE: &str = "https://laminari-client.laminari.workers.dev";
 const SESSION_COOKIE_NAME: &str = "__Host-laminari_session";
 
 static SESSION_COOKIE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportedVersion {
+    id: String,
+    name: String,
+    path: String,
+    json_path: String,
+    jar_path: Option<String>,
+    inherits_from: Option<String>,
+    loader: String,
+    release_type: String,
+}
 
 #[derive(Serialize)]
 struct LauncherStatus {
@@ -159,9 +175,151 @@ fn launcher_status() -> LauncherStatus {
     }
 }
 
+fn find_version_json(folder: &PathBuf) -> Result<PathBuf, String> {
+    let folder_name = folder
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+
+    let expected = folder.join(format!("{folder_name}.json"));
+    if expected.is_file() {
+        return Ok(expected);
+    }
+
+    let entries = fs::read_dir(folder)
+        .map_err(|error| format!("Не удалось прочитать папку версии: {error}"))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|value| value.to_str()) == Some("json") {
+            return Ok(path);
+        }
+    }
+
+    Err("В выбранной папке нет JSON-файла версии Minecraft.".to_string())
+}
+
+fn find_version_jar(folder: &PathBuf, id: &str) -> Option<PathBuf> {
+    let expected = folder.join(format!("{id}.jar"));
+    if expected.is_file() {
+        return Some(expected);
+    }
+
+    let entries = fs::read_dir(folder).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|value| value.to_str()) == Some("jar") {
+            return Some(path);
+        }
+    }
+
+    None
+}
+
+fn detect_loader(version_id: &str, data: &Value) -> String {
+    let mut haystack = version_id.to_lowercase();
+
+    if let Some(libraries) = data.get("libraries").and_then(Value::as_array) {
+        for library in libraries {
+            if let Some(name) = library.get("name").and_then(Value::as_str) {
+                haystack.push(' ');
+                haystack.push_str(&name.to_lowercase());
+            }
+        }
+    }
+
+    if haystack.contains("neoforge") {
+        "NeoForge".to_string()
+    } else if haystack.contains("fabric-loader") || haystack.contains("fabricmc") {
+        "Fabric".to_string()
+    } else if haystack.contains("quilt-loader") || haystack.contains("quiltmc") {
+        "Quilt".to_string()
+    } else if haystack.contains("forge") {
+        "Forge".to_string()
+    } else {
+        "Vanilla".to_string()
+    }
+}
+
 #[tauri::command]
-fn import_placeholder() -> String {
-    "Кнопка уже связана с Rust. Выбор папки .minecraft добавим следующим этапом.".to_string()
+async fn import_minecraft_version(app: tauri::AppHandle) -> Result<Option<ImportedVersion>, String> {
+    let selected = app
+        .dialog()
+        .file()
+        .set_title("Выбери папку версии Minecraft")
+        .blocking_pick_folder();
+
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+
+    let folder = selected
+        .into_path()
+        .map_err(|_| "Не удалось получить путь выбранной папки.".to_string())?;
+
+    if !folder.is_dir() {
+        return Err("Выбранный путь не является папкой.".to_string());
+    }
+
+    let json_path = find_version_json(&folder)?;
+    let json_text = fs::read_to_string(&json_path)
+        .map_err(|error| format!("Не удалось прочитать JSON версии: {error}"))?;
+    let data: Value = serde_json::from_str(&json_text)
+        .map_err(|error| format!("JSON версии повреждён: {error}"))?;
+
+    let looks_like_version = data.get("id").is_some()
+        || data.get("mainClass").is_some()
+        || data.get("inheritsFrom").is_some()
+        || data.get("libraries").is_some();
+
+    if !looks_like_version {
+        return Err("Эта папка не похожа на версию Minecraft.".to_string());
+    }
+
+    let folder_name = folder
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("Minecraft")
+        .to_string();
+
+    let id = data
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or(&folder_name)
+        .to_string();
+
+    let name = if id.trim().is_empty() {
+        folder_name.clone()
+    } else {
+        id.clone()
+    };
+
+    let inherits_from = data
+        .get("inheritsFrom")
+        .and_then(Value::as_str)
+        .map(ToString::to_string);
+
+    let release_type = data
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or("release")
+        .to_string();
+
+    let jar_path = find_version_jar(&folder, &id)
+        .map(|path| path.to_string_lossy().to_string());
+
+    let loader = detect_loader(&id, &data);
+
+    Ok(Some(ImportedVersion {
+        id,
+        name,
+        path: folder.to_string_lossy().to_string(),
+        json_path: json_path.to_string_lossy().to_string(),
+        jar_path,
+        inherits_from,
+        loader,
+        release_type,
+    }))
 }
 
 #[tauri::command]
@@ -387,9 +545,10 @@ async fn api_media(path: String, query: Option<Value>) -> Result<Value, String> 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             launcher_status,
-            import_placeholder,
+            import_minecraft_version,
             auth_login,
             auth_register,
             auth_logout,

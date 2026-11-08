@@ -138,7 +138,7 @@
         </div>
 
         <div class="window-controls">
-          <div class="version-pill">BETA 0.4.2</div>
+          <div class="version-pill">BETA 0.5.0</div>
           <button id="minimize-button" class="window-button" aria-label="Свернуть">—</button>
           <button id="maximize-button" class="window-button" aria-label="Развернуть">□</button>
           <button id="close-button" class="window-button close" aria-label="Закрыть">×</button>
@@ -176,8 +176,8 @@
 
             <div class="hero-copy">
               <span class="hero-label">LAMINARI CLIENT</span>
-              <h2>Один лаунчер.<br>Все твои сборки.</h2>
-              <p>Импортируй существующий Minecraft, управляй профилями и готовь клиент к запуску из одного чистого интерфейса.</p>
+              <h2>Один лаунчер.<br>Все твои версии.</h2>
+              <p>Импортируй установленную версию Minecraft из папки versions, выбирай её в Библиотеке и готовь к запуску.</p>
             </div>
 
             <div class="hero-actions">
@@ -186,7 +186,7 @@
                 <span class="button-arrow">→</span>
               </button>
               <button id="import-button" class="secondary-button">
-                Импортировать сборку
+                Импортировать версию
               </button>
             </div>
           </div>
@@ -198,8 +198,8 @@
               <span>БИБЛИОТЕКА</span>
               <span>↗</span>
             </div>
-            <strong>0</strong>
-            <p>импортированных профилей</p>
+            <strong id="library-count">0</strong>
+            <p>импортированных версий</p>
           </button>
 
           <div class="dashboard-card">
@@ -223,11 +223,26 @@
       </section>
 
       <section id="library-page" class="page">
-        <div class="empty-page">
-          <span>БИБЛИОТЕКА</span>
-          <h2>Здесь появятся твои сборки.</h2>
-          <p>Следующим этапом Laminari научится импортировать существующие папки Minecraft в отдельные профили.</p>
-          <button class="primary-button compact" id="library-import-button">Импортировать сборку</button>
+        <div class="library-layout">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">БИБЛИОТЕКА</span>
+              <h2>Версии Minecraft</h2>
+              <p>Импортируй конкретную папку версии из <code>.minecraft\versions</code>.</p>
+            </div>
+            <button class="primary-button compact-action" id="library-import-button">
+              <span>Импортировать версию</span>
+              <span>+</span>
+            </button>
+          </div>
+
+          <div id="versions-list" class="versions-grid"></div>
+
+          <div id="versions-empty" class="friends-empty versions-empty">
+            <div class="empty-avatar">＋</div>
+            <strong>Версий пока нет</strong>
+            <span>Нажми «Импортировать версию» и выбери папку нужной версии Minecraft.</span>
+          </div>
         </div>
       </section>
 

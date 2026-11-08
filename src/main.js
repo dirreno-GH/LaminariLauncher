@@ -268,12 +268,102 @@ document.querySelectorAll(".hub-tab").forEach((button) => {
 
 document.getElementById("library-card").addEventListener("click", () => openPage("library"));
 
+let importedVersions = loadImportedVersions();
+let activeVersionPath = localStorage.getItem("laminari_active_version") || "";
+
+function loadImportedVersions() {
+  try {
+    const stored = JSON.parse(localStorage.getItem("laminari_versions") || "[]");
+    return Array.isArray(stored) ? stored : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveImportedVersions() {
+  localStorage.setItem("laminari_versions", JSON.stringify(importedVersions));
+}
+
+function activeVersion() {
+  return importedVersions.find((version) => version.path === activeVersionPath) || null;
+}
+
+function selectVersion(version) {
+  activeVersionPath = version.path;
+  localStorage.setItem("laminari_active_version", version.path);
+  document.getElementById("profile-name").textContent = version.name || version.id || "Minecraft";
+  renderVersions();
+  showToast("Библиотека", "Активная версия: " + (version.name || version.id));
+}
+
+function renderVersions() {
+  const list = document.getElementById("versions-list");
+  const empty = document.getElementById("versions-empty");
+  const count = document.getElementById("library-count");
+
+  list.replaceChildren();
+  count.textContent = String(importedVersions.length);
+  empty.style.display = importedVersions.length ? "none" : "flex";
+
+  for (const version of importedVersions) {
+    const card = document.createElement("button");
+    const selected = version.path === activeVersionPath;
+    card.className = "version-card" + (selected ? " selected" : "");
+
+    const top = document.createElement("div");
+    top.className = "version-card-top";
+
+    const loader = document.createElement("span");
+    loader.className = "version-loader";
+    loader.textContent = version.loader || "Vanilla";
+
+    const state = document.createElement("span");
+    state.className = "version-state";
+    state.textContent = selected ? "АКТИВНА" : (version.jarPath ? "JAR" : "JSON");
+
+    top.append(loader, state);
+
+    const title = document.createElement("strong");
+    title.textContent = version.name || version.id || "Minecraft";
+
+    const details = document.createElement("span");
+    details.className = "version-details";
+    const inherited = version.inheritsFrom ? " · база " + version.inheritsFrom : "";
+    details.textContent = (version.releaseType || "release") + inherited;
+
+    const path = document.createElement("small");
+    path.className = "version-path";
+    path.textContent = version.path;
+
+    card.append(top, title, details, path);
+    card.addEventListener("click", () => selectVersion(version));
+    list.append(card);
+  }
+
+  const active = activeVersion();
+  document.getElementById("profile-name").textContent = active?.name || active?.id || "Laminari Client";
+}
+
 async function requestImport() {
   try {
-    const message = await invoke("import_placeholder");
-    showToast("Импорт сборки", message);
+    const version = await invoke("import_minecraft_version");
+    if (!version) {
+      return;
+    }
+
+    const existingIndex = importedVersions.findIndex((item) => item.path === version.path);
+    if (existingIndex >= 0) {
+      importedVersions[existingIndex] = version;
+    } else {
+      importedVersions.unshift(version);
+    }
+
+    saveImportedVersions();
+    selectVersion(version);
+    openPage("library");
+    showToast("Импорт версии", (version.name || version.id) + " добавлена в Библиотеку.");
   } catch (error) {
-    showToast("Ошибка", String(error));
+    showToast("Импорт версии", String(error));
   }
 }
 
@@ -281,8 +371,17 @@ document.getElementById("import-button").addEventListener("click", requestImport
 document.getElementById("library-import-button").addEventListener("click", requestImport);
 
 document.getElementById("play-button").addEventListener("click", () => {
-  showToast("Laminari Client", "Сначала импортируй сборку Minecraft.");
+  const version = activeVersion();
+
+  if (!version) {
+    showToast("Laminari Client", "Сначала импортируй версию Minecraft.");
+    return;
+  }
+
+  showToast("Запуск", "Версия " + (version.name || version.id) + " выбрана. Запуск подключим следующим этапом.");
 });
+
+renderVersions();
 
 document.getElementById("minimize-button").addEventListener("click", async () => {
   try { await currentWindow?.minimize(); } catch (error) { showToast("Окно", String(error)); }
