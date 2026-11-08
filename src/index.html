@@ -104,6 +104,10 @@
           <span class="nav-icon">✦</span>
           <span>Мессенджер</span>
         </button>
+        <button class="nav-item" data-page="hub">
+          <span class="nav-icon">✣</span>
+          <span>Hub</span>
+        </button>
         <button class="nav-item" data-page="profile">
           <span class="nav-icon">◉</span>
           <span>Профиль</span>
@@ -133,7 +137,7 @@
         </div>
 
         <div class="window-controls">
-          <div class="version-pill">BETA 0.3</div>
+          <div class="version-pill">BETA 0.4</div>
           <button id="minimize-button" class="window-button" aria-label="Свернуть">—</button>
           <button id="maximize-button" class="window-button" aria-label="Развернуть">□</button>
           <button id="close-button" class="window-button close" aria-label="Закрыть">×</button>
@@ -235,32 +239,110 @@
       </section>
 
       <section id="messenger-page" class="page">
-        <div class="messenger-layout">
-          <div class="section-heading">
-            <div>
-              <span class="eyebrow">МЕССЕНДЖЕР</span>
-              <h2>Друзья</h2>
-              <p>Найди друга по нику или выбери его из списка ниже.</p>
+        <div class="messenger-app">
+          <aside class="messenger-sidebar">
+            <div class="messenger-sidebar-head">
+              <div>
+                <span class="eyebrow">МЕССЕНДЖЕР</span>
+                <h2>Сообщения</h2>
+              </div>
+              <button id="add-friend-button" class="icon-action" title="Добавить друга">+</button>
             </div>
-            <button id="add-friend-button" class="secondary-button small-button">+ Добавить друга</button>
+
+            <div class="friend-search">
+              <span class="search-icon">⌕</span>
+              <input id="friend-search-input" type="text" autocomplete="off" placeholder="Поиск друзей...">
+            </div>
+
+            <div id="friend-requests-box" class="request-box hidden">
+              <div class="friends-header">
+                <span>ЗАЯВКИ</span>
+                <span id="requests-count">0</span>
+              </div>
+              <div id="friend-requests-list" class="requests-list"></div>
+            </div>
+
+            <div class="friends-header">
+              <span>ТВОИ ДРУЗЬЯ</span>
+              <span id="friends-count">0</span>
+            </div>
+
+            <div id="friends-list" class="friends-list"></div>
+
+            <div id="friends-empty" class="friends-empty compact-empty">
+              <div class="empty-avatar">+</div>
+              <strong>Список друзей пуст</strong>
+              <span>Найди пользователя Laminari и отправь заявку.</span>
+            </div>
+          </aside>
+
+          <section class="chat-panel">
+            <div id="chat-empty" class="chat-empty">
+              <div class="chat-empty-mark">✦</div>
+              <strong>Выбери друга</strong>
+              <span>Здесь появится переписка из сайта Laminari.</span>
+            </div>
+
+            <div id="chat-view" class="chat-view hidden">
+              <header class="chat-header">
+                <div class="chat-user">
+                  <div id="chat-avatar" class="friend-avatar">L</div>
+                  <div>
+                    <strong id="chat-name">Друг</strong>
+                    <span id="chat-status">Не в сети</span>
+                  </div>
+                </div>
+                <div class="chat-tools">
+                  <button id="chat-search-button" class="mini-button">Поиск</button>
+                  <button id="chat-gallery-button" class="mini-button">Галерея</button>
+                  <button id="chat-sticker-button" class="mini-button">Стикер</button>
+                  <button id="chat-emoji-button" class="mini-button">Эмодзи</button>
+                  <button id="chat-favorite-button" class="mini-button">☆</button>
+                  <button id="chat-more-button" class="mini-button">•••</button>
+                </div>
+              </header>
+
+              <div id="pinned-message" class="pinned-message hidden"></div>
+              <div id="chat-messages" class="chat-messages"></div>
+              <div id="typing-indicator" class="typing-indicator"></div>
+
+              <div class="chat-compose">
+                <label class="attach-button" title="Вложение">
+                  <input id="chat-file-input" type="file" hidden>
+                  <span>＋</span>
+                </label>
+                <textarea id="chat-input" rows="1" maxlength="1000" placeholder="Написать сообщение..."></textarea>
+                <button id="chat-send-button" class="primary-button chat-send"><span>Отправить</span><span>→</span></button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="hub-page" class="page">
+        <div class="hub-shell">
+          <div class="section-heading hub-heading">
+            <div>
+              <span class="eyebrow">LAMINARI HUB</span>
+              <h2>Функции сайта — в лаунчере.</h2>
+              <p>Группы, форум, достижения, безопасность, сессии, приглашения и управление.</p>
+            </div>
           </div>
 
-          <div class="friend-search">
-            <span class="search-icon">⌕</span>
-            <input id="friend-search-input" type="text" autocomplete="off" placeholder="Поиск среди друзей...">
+          <div class="hub-tabs">
+            <button class="hub-tab active" data-hub="overview">Обзор</button>
+            <button class="hub-tab" data-hub="groups">Группы</button>
+            <button class="hub-tab" data-hub="forum">Форум</button>
+            <button class="hub-tab" data-hub="security">Безопасность</button>
+            <button class="hub-tab" data-hub="sessions">Сессии</button>
+            <button class="hub-tab" data-hub="invites">Приглашения</button>
+            <button class="hub-tab" data-hub="extras">Дополнительно</button>
+            <button class="hub-tab" data-hub="changelog">Changelog</button>
+            <button id="admin-hub-tab" class="hub-tab hidden" data-hub="admin">Admin</button>
           </div>
 
-          <div class="friends-header">
-            <span>ТВОИ ДРУЗЬЯ</span>
-            <span id="friends-count">0</span>
-          </div>
-
-          <div id="friends-list" class="friends-list"></div>
-
-          <div id="friends-empty" class="friends-empty">
-            <div class="empty-avatar">+</div>
-            <strong>Список друзей пуст</strong>
-            <span>Нажми «Добавить друга», чтобы отправить заявку пользователю сайта Laminari.</span>
+          <div id="hub-content" class="hub-content">
+            <div class="hub-loading">Загрузка Laminari Hub...</div>
           </div>
         </div>
       </section>
@@ -306,6 +388,36 @@
                 <option value="glow">Glow</option>
                 <option value="tech">Tech</option>
               </select>
+            </label>
+
+            <label class="profile-field">
+              <span>АКТИВНОСТЬ</span>
+              <input id="profile-activity-input" maxlength="80" placeholder="Например: Играю в Minecraft">
+            </label>
+
+            <label class="profile-field">
+              <span>БАННЕР ПРОФИЛЯ</span>
+              <input id="profile-banner-input" maxlength="120" placeholder="Текст баннера">
+            </label>
+
+            <label class="profile-field">
+              <span>АКЦЕНТ</span>
+              <select id="profile-accent-input">
+                <option value="mono">Mono</option>
+                <option value="ice">Ice</option>
+                <option value="red">Red</option>
+                <option value="blue">Blue</option>
+              </select>
+            </label>
+
+            <div class="profile-switches">
+              <label><input id="profile-invisible-input" type="checkbox"><span>Невидимый режим</span></label>
+              <label><input id="profile-public-input" type="checkbox" checked><span>Публичный профиль</span></label>
+            </div>
+
+            <label class="profile-upload">
+              <input id="profile-avatar-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+              <span>Загрузить аватар</span>
             </label>
 
             <button id="save-profile-button" class="primary-button profile-save-button">

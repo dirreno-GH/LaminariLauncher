@@ -1,7 +1,9 @@
-use reqwest::header::{COOKIE, SET_COOKIE};
-use reqwest::{Client, StatusCode};
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
+use reqwest::header::{HeaderValue, CONTENT_TYPE, COOKIE, SET_COOKIE};
+use reqwest::{Client, StatusCode, Url};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use std::sync::{Mutex, OnceLock};
 
 const API_BASE: &str = "https://laminari-client.laminari.workers.dev";
@@ -22,10 +24,17 @@ fn session_store() -> &'static Mutex<Option<String>> {
 
 fn client() -> Result<Client, String> {
     Client::builder()
-        .user_agent("LaminariLauncher/0.3")
+        .user_agent("LaminariLauncher/0.4")
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|error| format!("Не удалось создать сетевой клиент: {error}"))
+}
+
+fn validate_api_path(path: &str) -> Result<(), String> {
+    if !path.starts_with("/api/") || path.contains("://") || path.contains("..") {
+        return Err("Недопустимый путь API".to_string());
+    }
+    Ok(())
 }
 
 fn current_cookie() -> Result<String, String> {
@@ -34,6 +43,12 @@ fn current_cookie() -> Result<String, String> {
         .map_err(|_| "Не удалось прочитать сессию".to_string())?
         .clone()
         .ok_or_else(|| "Сначала войди в аккаунт".to_string())
+}
+
+fn clear_cookie() {
+    if let Ok(mut guard) = session_store().lock() {
+        *guard = None;
+    }
 }
 
 fn store_cookie_from_response(response: &reqwest::Response) -> Result<(), String> {
@@ -59,6 +74,30 @@ fn store_cookie_from_response(response: &reqwest::Response) -> Result<(), String
     Ok(())
 }
 
+fn append_query(url: &mut Url, query: &Value) {
+    if let Some(object) = query.as_object() {
+        let mut pairs = url.query_pairs_mut();
+        for (key, value) in object {
+            if value.is_null() {
+                continue;
+            }
+            let text = value
+                .as_str()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| value.to_string());
+            pairs.append_pair(key, &text);
+        }
+    }
+}
+
+fn api_url(path: &str, query: &Value) -> Result<Url, String> {
+    validate_api_path(path)?;
+    let mut url = Url::parse(&format!("{API_BASE}{path}"))
+        .map_err(|error| format!("Некорректный адрес API: {error}"))?;
+    append_query(&mut url, query);
+    Ok(url)
+}
+
 async fn parse_json_response(response: reqwest::Response) -> Result<Value, String> {
     let status = response.status();
     let payload = response
@@ -77,19 +116,24 @@ async fn parse_json_response(response: reqwest::Response) -> Result<Value, Strin
     Ok(payload)
 }
 
-async fn authenticated_get(path: &str) -> Result<Value, String> {
+async fn authenticated_get(path: &str, query: Value) -> Result<Value, String> {
     let cookie = current_cookie()?;
     let response = client()?
-        .get(format!("{API_BASE}{path}"))
+        .get(api_url(path, &query)?)
         .header(COOKIE, cookie)
         .send()
         .await
         .map_err(|error| format!("Нет соединения с Laminari: {error}"))?;
 
+    if response.status() == StatusCode::UNAUTHORIZED {
+        clear_cookie();
+    }
+
     parse_json_response(response).await
 }
 
 async fn authenticated_post(path: &str, body: Value) -> Result<Value, String> {
+    validate_api_path(path)?;
     let cookie = current_cookie()?;
     let response = client()?
         .post(format!("{API_BASE}{path}"))
@@ -98,6 +142,10 @@ async fn authenticated_post(path: &str, body: Value) -> Result<Value, String> {
         .send()
         .await
         .map_err(|error| format!("Нет соединения с Laminari: {error}"))?;
+
+    if response.status() == StatusCode::UNAUTHORIZED {
+        clear_cookie();
+    }
 
     parse_json_response(response).await
 }
@@ -161,9 +209,7 @@ async fn auth_register(email: String, username: String, password: String) -> Res
 
 #[tauri::command]
 async fn auth_logout() -> Result<Value, String> {
-    let cookie = current_cookie().ok();
-
-    if let Some(cookie) = cookie {
+    if let Ok(cookie) = current_cookie() {
         let _ = client()?
             .post(format!("{API_BASE}/api/logout"))
             .header(COOKIE, cookie)
@@ -171,22 +217,18 @@ async fn auth_logout() -> Result<Value, String> {
             .await;
     }
 
-    let mut guard = session_store()
-        .lock()
-        .map_err(|_| "Не удалось очистить сессию".to_string())?;
-
-    *guard = None;
+    clear_cookie();
     Ok(json!({ "ok": true }))
 }
 
 #[tauri::command]
 async fn account_me() -> Result<Value, String> {
-    authenticated_get("/api/me").await
+    authenticated_get("/api/me", json!({})).await
 }
 
 #[tauri::command]
 async fn account_profile() -> Result<Value, String> {
-    authenticated_get("/api/messenger/settings").await
+    authenticated_get("/api/messenger/settings", json!({})).await
 }
 
 #[tauri::command]
@@ -212,34 +254,133 @@ async fn account_save_profile(
 
 #[tauri::command]
 async fn account_friends() -> Result<Value, String> {
-    authenticated_get("/api/messenger/friends").await
+    authenticated_get("/api/messenger/friends", json!({})).await
 }
 
 #[tauri::command]
 async fn account_search_users(query: String) -> Result<Value, String> {
+    authenticated_get("/api/messenger/search", json!({ "q": query })).await
+}
+
+#[tauri::command]
+async fn account_send_friend_request(target_id: String) -> Result<Value, String> {
+    authenticated_post("/api/messenger/request", json!({ "targetId": target_id })).await
+}
+
+#[tauri::command]
+async fn api_get(path: String, query: Value) -> Result<Value, String> {
+    authenticated_get(&path, query).await
+}
+
+#[tauri::command]
+async fn api_post(path: String, body: Value) -> Result<Value, String> {
+    authenticated_post(&path, body).await
+}
+
+#[tauri::command]
+async fn api_get_text(path: String, query: Value) -> Result<String, String> {
     let cookie = current_cookie()?;
-    let mut url = reqwest::Url::parse(&format!("{API_BASE}/api/messenger/search"))
-        .map_err(|error| format!("Некорректный адрес API: {error}"))?;
-
-    url.query_pairs_mut().append_pair("q", &query);
-
     let response = client()?
-        .get(url)
+        .get(api_url(&path, &query)?)
         .header(COOKIE, cookie)
         .send()
         .await
         .map_err(|error| format!("Нет соединения с Laminari: {error}"))?;
 
+    if !response.status().is_success() {
+        return Err(format!("Сервер вернул ошибку {}", response.status()));
+    }
+
+    response
+        .text()
+        .await
+        .map_err(|error| format!("Не удалось прочитать ответ: {error}"))
+}
+
+#[tauri::command]
+async fn api_upload(
+    path: String,
+    query: Value,
+    content_type: String,
+    file_name: String,
+    bytes: Vec<u8>,
+) -> Result<Value, String> {
+    validate_api_path(&path)?;
+
+    let allowed = [
+        "/api/profile/avatar",
+        "/api/messenger/attachment",
+        "/api/social/sticker-upload",
+        "/api/social/emoji-upload",
+    ];
+
+    if !allowed.iter().any(|item| *item == path) {
+        return Err("Загрузка в этот API запрещена лаунчером".to_string());
+    }
+
+    let cookie = current_cookie()?;
+    let mut request = client()?
+        .post(api_url(&path, &query)?)
+        .header(COOKIE, cookie)
+        .header(CONTENT_TYPE, content_type)
+        .body(bytes);
+
+    let safe_header = HeaderValue::from_str(&file_name)
+        .unwrap_or_else(|_| HeaderValue::from_static("file"));
+    request = request.header("X-File-Name", safe_header);
+
+    let response = request
+        .send()
+        .await
+        .map_err(|error| format!("Не удалось загрузить файл: {error}"))?;
+
     parse_json_response(response).await
 }
 
 #[tauri::command]
-async fn account_send_friend_request(target_id: String) -> Result<Value, String> {
-    authenticated_post(
-        "/api/messenger/request",
-        json!({ "targetId": target_id }),
-    )
-    .await
+async fn api_media(path: String) -> Result<Value, String> {
+    validate_api_path(&path)?;
+
+    let allowed = [
+        "/api/avatar/",
+        "/api/messenger/media/",
+        "/api/social/sticker-media/",
+        "/api/social/emoji-media/",
+        "/api/social/group-media/",
+    ];
+
+    if !allowed.iter().any(|prefix| path.starts_with(prefix)) {
+        return Err("Недопустимый media API".to_string());
+    }
+
+    let cookie = current_cookie()?;
+    let response = client()?
+        .get(format!("{API_BASE}{path}"))
+        .header(COOKIE, cookie)
+        .send()
+        .await
+        .map_err(|error| format!("Не удалось загрузить медиа: {error}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Медиа недоступно ({})", response.status()));
+    }
+
+    let mime = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| format!("Не удалось прочитать медиа: {error}"))?;
+
+    Ok(json!({
+        "mime": mime,
+        "data": BASE64.encode(bytes)
+    }))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -256,7 +397,12 @@ pub fn run() {
             account_save_profile,
             account_friends,
             account_search_users,
-            account_send_friend_request
+            account_send_friend_request,
+            api_get,
+            api_post,
+            api_get_text,
+            api_upload,
+            api_media
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Laminari Launcher");
