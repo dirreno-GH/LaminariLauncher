@@ -97,6 +97,8 @@ let currentHub = "overview";
 let canManageRoles = false;
 let typingTimer = null;
 let messengerRefreshTimer = null;
+let friendsRefreshTimer = null;
+let heartbeatTimer = null;
 let pendingReply = null;
 let lastSummaryMessageId = null;
 
@@ -443,11 +445,16 @@ function renderFriends(filter = "") {
   for (const friend of visible) {
     const card = document.createElement("button");
     card.className = "friend-card" + (activeFriend?.id === friend.id ? " selected" : "");
+    const presenceText = friend.online ? "В сети" : "Не в сети";
+    const secondary = friend.lastMessage || friend.status || "";
     card.innerHTML = `
-      <span class="friend-avatar frame-${esc(friend.frameStyle || "classic")}">${esc((friend.username || "L")[0].toUpperCase())}</span>
+      <span class="friend-avatar-wrap">
+        <span class="friend-avatar frame-${esc(friend.frameStyle || "classic")}">${esc((friend.username || "L")[0].toUpperCase())}</span>
+        <span class="presence-dot ${friend.online ? "online" : "offline"}"></span>
+      </span>
       <span class="friend-copy">
         <strong>${friend.favorite ? "★ " : ""}${esc(friend.username || "Пользователь")}</strong>
-        <span>${esc(friend.lastMessage || friend.status || (friend.online ? "В сети" : "Не в сети"))}</span>
+        <span>${esc(presenceText)}${secondary ? " · " + esc(secondary) : ""}</span>
       </span>
       ${friend.unread ? `<span class="unread-badge">${Number(friend.unread)}</span>` : ""}
     `;
@@ -510,7 +517,24 @@ async function refreshChat() {
   if (!activeFriend) return;
 
   const payload = await apiGet("/api/messenger/messages", { userId: activeFriend.id });
-  typingIndicator.textContent = payload.typing ? "печатает..." : "";
+  const liveUser = payload.user || {};
+  activeFriend = { ...activeFriend, ...liveUser };
+  chatName.textContent = liveUser.username || activeFriend.username || "Друг";
+  chatAvatar.className = "friend-avatar frame-" + (liveUser.frameStyle || activeFriend.frameStyle || "classic");
+  chatAvatar.textContent = ((liveUser.username || activeFriend.username || "L")[0] || "L").toUpperCase();
+
+  if (payload.typing) {
+    chatStatus.textContent = "печатает…";
+    typingIndicator.textContent = "печатает…";
+  } else if (liveUser.online) {
+    chatStatus.textContent = (liveUser.role || activeFriend.role || "Игрок") + " · В сети";
+    typingIndicator.textContent = "";
+  } else {
+    const lastSeen = Number(liveUser.lastSeen || 0);
+    chatStatus.textContent = (liveUser.role || activeFriend.role || "Игрок") + (lastSeen ? " · Был(а) " + fmtTime(lastSeen) : " · Не в сети");
+    typingIndicator.textContent = "";
+  }
+
   pinnedMessage.classList.toggle("hidden", !payload.pinnedMessageId);
   pinnedMessage.textContent = payload.pinnedMessageId ? "📌 Закреплённое сообщение · нажми, чтобы снять закрепление" : "";
   pinnedMessage.onclick = payload.pinnedMessageId ? async () => {
@@ -867,20 +891,41 @@ document.getElementById("chat-more-button").onclick = async () => {
 
 function startMessengerRefresh() {
   stopMessengerRefresh();
+
+  apiPost("/api/messenger/heartbeat", {}).catch(() => {});
+  refreshMessengerSummary().catch(() => {});
+  Promise.all([loadFriends(), loadRequests()]).catch(() => {});
+
   messengerRefreshTimer = setInterval(async () => {
     if (!currentMe) return;
     try {
-      await apiPost("/api/messenger/heartbeat", {});
       await refreshMessengerSummary();
       if (activeFriend) await refreshChat();
-      await loadRequests();
     } catch {}
-  }, 5000);
+  }, 3000);
+
+  friendsRefreshTimer = setInterval(async () => {
+    if (!currentMe) return;
+    try {
+      await Promise.all([loadFriends(), loadRequests()]);
+    } catch {}
+  }, 6000);
+
+  heartbeatTimer = setInterval(async () => {
+    if (!currentMe) return;
+    try {
+      await apiPost("/api/messenger/heartbeat", {});
+    } catch {}
+  }, 15000);
 }
 
 function stopMessengerRefresh() {
   if (messengerRefreshTimer) clearInterval(messengerRefreshTimer);
+  if (friendsRefreshTimer) clearInterval(friendsRefreshTimer);
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
   messengerRefreshTimer = null;
+  friendsRefreshTimer = null;
+  heartbeatTimer = null;
 }
 
 function showHubError(error) {
