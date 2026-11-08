@@ -3,7 +3,7 @@ use base64::Engine;
 use reqwest::header::{HeaderValue, CONTENT_TYPE, COOKIE, SET_COOKIE};
 use reqwest::{Client, StatusCode, Url};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
@@ -713,7 +713,7 @@ async fn check_for_updates() -> Result<UpdateInfo, String> {
 }
 
 fn escape_powershell_single_quoted(value: &str) -> String {
-    value.replace(''', "''")
+    value.replace('\'', "''")
 }
 
 #[tauri::command]
