@@ -951,3 +951,264 @@ button {
     min-height: 300px;
   }
 }
+
+
+.hidden {
+  display: none !important;
+}
+
+.auth-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255,255,255,.075), transparent 24%),
+    #050505;
+}
+
+.auth-card {
+  width: min(480px, 100%);
+  padding: 30px;
+  background: #0a0a0a;
+  border: 1px solid #252525;
+  border-radius: 28px;
+  box-shadow: 0 35px 120px rgba(0,0,0,.72);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-brand > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.auth-brand strong {
+  font-size: 13px;
+  letter-spacing: 1.8px;
+}
+
+.auth-brand span {
+  color: #666;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.auth-heading {
+  margin: 30px 0 20px;
+}
+
+.auth-heading h1 {
+  margin: 9px 0 8px;
+  font-size: 36px;
+  letter-spacing: -1.7px;
+}
+
+.auth-heading p {
+  margin: 0;
+  color: #777;
+  font-size: 11px;
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 5px;
+  margin-bottom: 16px;
+  background: #070707;
+  border: 1px solid #1f1f1f;
+  border-radius: 15px;
+}
+
+.auth-tab {
+  height: 38px;
+  color: #777;
+  background: transparent;
+  border: 0;
+  border-radius: 11px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.auth-tab.active {
+  color: #070707;
+  background: #f4f4f4;
+}
+
+.auth-form {
+  display: grid;
+  gap: 2px;
+}
+
+.auth-form .profile-field {
+  margin-top: 11px;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 18px;
+}
+
+.auth-error {
+  min-height: 18px;
+  margin-top: 13px;
+  color: #ff9a9a;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.auth-note {
+  margin-top: 12px;
+  color: #555;
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 13px;
+  color: #777;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.consent-row input {
+  margin-top: 1px;
+}
+
+.profile-frame {
+  display: grid;
+  place-items: center;
+  width: 117px;
+  height: 117px;
+  margin: 28px 0 18px;
+  border-radius: 38px;
+  transition: 180ms ease;
+}
+
+.profile-frame .profile-avatar {
+  width: 105px;
+  height: 105px;
+  margin: 0;
+}
+
+.frame-classic {
+  border: 1px solid #555;
+}
+
+.frame-double {
+  border: 4px double #fff;
+}
+
+.frame-corners {
+  border: 2px solid #eee;
+  border-radius: 10px;
+  clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
+}
+
+.frame-glow {
+  border: 2px solid #fff;
+  box-shadow: 0 0 22px rgba(255,255,255,.35), 0 0 55px rgba(255,255,255,.13);
+}
+
+.frame-tech {
+  border: 2px dashed #d9d9d9;
+  border-radius: 20px;
+}
+
+.friend-avatar.frame-double {
+  border: 3px double #fff;
+}
+
+.friend-avatar.frame-corners {
+  border-radius: 5px;
+  clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 7px, 100% calc(100% - 7px), calc(100% - 7px) 100%, 7px 100%, 0 calc(100% - 7px), 0 7px);
+}
+
+.friend-avatar.frame-glow {
+  box-shadow: 0 0 0 1px #fff, 0 0 14px rgba(255,255,255,.35);
+}
+
+.friend-avatar.frame-tech {
+  border: 2px dashed #111;
+}
+
+.account-readonly {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.account-readonly > div {
+  padding: 13px;
+  background: #0f0f0f;
+  border: 1px solid #262626;
+  border-radius: 14px;
+}
+
+.account-readonly span {
+  display: block;
+  margin-bottom: 5px;
+  color: #5d5d5d;
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: 1.3px;
+}
+
+.account-readonly strong {
+  font-size: 11px;
+}
+
+.profile-field textarea {
+  width: 100%;
+  min-height: 92px;
+  padding: 13px 14px;
+  resize: vertical;
+  color: #eee;
+  background: #0f0f0f;
+  border: 1px solid #282828;
+  border-radius: 14px;
+  outline: 0;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.profile-field textarea:focus {
+  border-color: #4a4a4a;
+  background: #121212;
+}
+
+.profile-account-state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 20px;
+  color: #666;
+  font-size: 8px;
+}
+
+.profile-logout-button {
+  margin-top: 10px;
+}
+
+.profile-field small {
+  color: #555;
+  font-size: 7px;
+  font-weight: 600;
+  text-transform: none;
+}

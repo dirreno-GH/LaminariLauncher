@@ -7,6 +7,72 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
+  <div id="auth-gate" class="auth-gate">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="brand-mark"><img src="./assets/laminari-mark.svg" alt="LC"></div>
+        <div>
+          <strong>LAMINARI</strong>
+          <span>ACCOUNT</span>
+        </div>
+      </div>
+
+      <div class="auth-heading">
+        <span class="eyebrow">LAMINARI NETWORK</span>
+        <h1>Войди в аккаунт.</h1>
+        <p>Один аккаунт для сайта, профиля, друзей и лаунчера.</p>
+      </div>
+
+      <div class="auth-tabs">
+        <button id="auth-login-tab" class="auth-tab active" type="button">Вход</button>
+        <button id="auth-register-tab" class="auth-tab" type="button">Регистрация</button>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <label class="profile-field">
+          <span>НИК</span>
+          <input id="login-username" name="username" maxlength="24" autocomplete="username" required placeholder="Твой ник">
+        </label>
+        <label class="profile-field">
+          <span>ПАРОЛЬ</span>
+          <input id="login-password" name="password" type="password" maxlength="128" autocomplete="current-password" required placeholder="Пароль">
+        </label>
+        <label class="profile-field">
+          <span>КОД 2FA <small>если включён</small></span>
+          <input id="login-totp" name="totp" maxlength="8" inputmode="numeric" autocomplete="one-time-code" placeholder="000000">
+        </label>
+        <button class="primary-button auth-submit" type="submit">
+          <span>Войти</span><span class="button-arrow">→</span>
+        </button>
+      </form>
+
+      <form id="register-form" class="auth-form hidden">
+        <label class="profile-field">
+          <span>ПОЧТА</span>
+          <input id="register-email" name="email" type="email" maxlength="254" autocomplete="email" required placeholder="name@example.com">
+        </label>
+        <label class="profile-field">
+          <span>НИК</span>
+          <input id="register-username" name="username" maxlength="24" autocomplete="username" required placeholder="3–24 символа">
+        </label>
+        <label class="profile-field">
+          <span>ПАРОЛЬ</span>
+          <input id="register-password" name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required placeholder="Минимум 12 символов">
+        </label>
+        <label class="consent-row">
+          <input id="register-consent" type="checkbox" required>
+          <span>Согласен на обработку данных аккаунта Laminari.</span>
+        </label>
+        <button class="primary-button auth-submit" type="submit">
+          <span>Создать аккаунт</span><span class="button-arrow">→</span>
+        </button>
+      </form>
+
+      <div id="auth-error" class="auth-error"></div>
+      <div class="auth-note">Пароль отправляется только на backend Laminari по HTTPS. Лаунчер не сохраняет пароль.</div>
+    </div>
+  </div>
+
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
@@ -67,7 +133,7 @@
         </div>
 
         <div class="window-controls">
-          <div class="version-pill">BETA 0.1</div>
+          <div class="version-pill">BETA 0.3</div>
           <button id="minimize-button" class="window-button" aria-label="Свернуть">—</button>
           <button id="maximize-button" class="window-button" aria-label="Развернуть">□</button>
           <button id="close-button" class="window-button close" aria-label="Закрыть">×</button>
@@ -181,7 +247,7 @@
 
           <div class="friend-search">
             <span class="search-icon">⌕</span>
-            <input id="friend-search-input" type="text" autocomplete="off" placeholder="Поиск друзей...">
+            <input id="friend-search-input" type="text" autocomplete="off" placeholder="Поиск среди друзей...">
           </div>
 
           <div class="friends-header">
@@ -194,7 +260,7 @@
           <div id="friends-empty" class="friends-empty">
             <div class="empty-avatar">+</div>
             <strong>Список друзей пуст</strong>
-            <span>Нажми «Добавить друга», чтобы добавить первый локальный контакт.</span>
+            <span>Нажми «Добавить друга», чтобы отправить заявку пользователю сайта Laminari.</span>
           </div>
         </div>
       </section>
@@ -203,33 +269,42 @@
         <div class="profile-layout">
           <div class="profile-preview">
             <span class="eyebrow">ТВОЙ ПРОФИЛЬ</span>
-            <div class="profile-avatar" id="profile-avatar">D</div>
-            <strong id="profile-preview-name">dirreno</strong>
+            <div id="profile-frame" class="profile-frame frame-classic">
+              <div class="profile-avatar" id="profile-avatar">L</div>
+            </div>
+            <strong id="profile-preview-name">Laminari</strong>
             <span id="profile-preview-role" class="profile-role">Игрок</span>
             <p id="profile-preview-status">В Laminari</p>
+            <div class="profile-account-state"><span class="status-dot"></span><span>Аккаунт сайта подключён</span></div>
           </div>
 
           <div class="profile-editor">
             <span class="eyebrow">НАСТРОЙКИ ПРОФИЛЯ</span>
-            <h2>Настрой профиль.</h2>
+            <h2>Профиль Laminari.</h2>
 
-            <label class="profile-field">
-              <span>НИК</span>
-              <input id="profile-name-input" maxlength="24" placeholder="Твой ник">
-            </label>
+            <div class="account-readonly">
+              <div><span>НИК</span><strong id="profile-account-name">—</strong></div>
+              <div><span>РОЛЬ</span><strong id="profile-account-role">—</strong></div>
+            </div>
 
             <label class="profile-field">
               <span>СТАТУС</span>
-              <input id="profile-status-input" maxlength="60" placeholder="Например: Играю в Minecraft">
+              <input id="profile-status-input" maxlength="80" placeholder="Например: Играю в Minecraft">
             </label>
 
             <label class="profile-field">
-              <span>РОЛЬ</span>
-              <select id="profile-role-input">
-                <option value="Игрок">Игрок</option>
-                <option value="Media">Media</option>
-                <option value="TikTok">TikTok</option>
-                <option value="YouTube">YouTube</option>
+              <span>О СЕБЕ</span>
+              <textarea id="profile-bio-input" maxlength="240" rows="4" placeholder="Немного о себе"></textarea>
+            </label>
+
+            <label class="profile-field">
+              <span>РАМКА ПРОФИЛЯ</span>
+              <select id="profile-frame-input">
+                <option value="classic">Classic</option>
+                <option value="double">Double</option>
+                <option value="corners">Corners</option>
+                <option value="glow">Glow</option>
+                <option value="tech">Tech</option>
               </select>
             </label>
 
@@ -238,7 +313,8 @@
               <span class="button-arrow">→</span>
             </button>
 
-            <span class="profile-note">Пока профиль хранится только на этом ПК. Серверную синхронизацию добавим отдельно.</span>
+            <button id="logout-button" class="secondary-button profile-logout-button">Выйти из аккаунта</button>
+            <span class="profile-note">Роль выдаётся на сервере Laminari и не может быть изменена самим пользователем.</span>
           </div>
         </div>
       </section>
