@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -31,9 +31,30 @@ jobs:
       - name: Build Laminari Launcher
         run: npm run build
 
+      - name: Prepare release file
+        shell: pwsh
+        run: |
+          Copy-Item "src-tauri/target/release/laminari_launcher.exe" "LaminariLauncher.exe" -Force
+          $version = (Get-Content "package.json" | ConvertFrom-Json).version
+          "LAMINARI_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Upload Windows executable
         uses: actions/upload-artifact@v4
         with:
           name: LaminariLauncher-Windows
-          path: src-tauri/target/release/laminari_launcher.exe
+          path: LaminariLauncher.exe
           if-no-files-found: error
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v$env:LAMINARI_VERSION"
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag "LaminariLauncher.exe" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Laminari Launcher $env:LAMINARI_VERSION" --notes "Windows x64 release of Laminari Launcher." --latest
+          } else {
+            gh release upload $tag "LaminariLauncher.exe" --repo $env:GITHUB_REPOSITORY --clobber
+            gh release edit $tag --repo $env:GITHUB_REPOSITORY --latest
+          }
