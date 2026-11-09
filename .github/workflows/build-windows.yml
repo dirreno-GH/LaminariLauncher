@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build:
@@ -44,6 +45,13 @@ jobs:
           name: LaminariLauncher-Windows
           path: LaminariLauncher.exe
           if-no-files-found: error
+
+      - name: Publish launcher to Cloudflare
+        shell: pwsh
+        run: |
+          $headers = @{ Authorization = "bearer $env:ACTIONS_ID_TOKEN_REQUEST_TOKEN" }
+          $oidc = Invoke-RestMethod -Headers $headers -Uri "$env:ACTIONS_ID_TOKEN_REQUEST_URL&audience=laminari-launcher-upload"
+          curl.exe --silent --show-error --fail-with-body --retry 3 -X PUT -H "Authorization: Bearer $($oidc.value)" -H "Content-Type: application/vnd.microsoft.portable-executable" -H "X-GitHub-SHA: $env:GITHUB_SHA" -H "X-Launcher-Version: $env:LAMINARI_VERSION" --data-binary "@LaminariLauncher.exe" "https://laminari-client.laminari.workers.dev/api/launcher/upload"
 
       - name: Publish GitHub Release
         shell: pwsh
