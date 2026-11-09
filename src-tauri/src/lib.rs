@@ -288,22 +288,36 @@ async fn import_minecraft_version(app: tauri::AppHandle) -> Result<Option<Import
     let selected = app
         .dialog()
         .file()
-        .set_title("Выбери папку версии Minecraft")
-        .blocking_pick_folder();
+        .set_title("Выбери любой файл из папки версии Minecraft")
+        .blocking_pick_file();
 
     let Some(selected) = selected else {
         return Ok(None);
     };
 
-    let folder = selected
+    let selected_path = selected
         .into_path()
-        .map_err(|_| "Не удалось получить путь выбранной папки.".to_string())?;
+        .map_err(|_| "Не удалось получить путь выбранного файла.".to_string())?;
 
-    if !folder.is_dir() {
-        return Err("Выбранный путь не является папкой.".to_string());
+    if !selected_path.is_file() {
+        return Err("Нужно выбрать файл из папки версии Minecraft.".to_string());
     }
 
-    let json_path = find_version_json(&folder)?;
+    let folder = selected_path
+        .parent()
+        .map(PathBuf::from)
+        .ok_or_else(|| "Не удалось определить папку выбранного файла.".to_string())?;
+
+    let json_path = if selected_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.eq_ignore_ascii_case("json"))
+        .unwrap_or(false)
+    {
+        selected_path.clone()
+    } else {
+        find_version_json(&folder)?
+    };
     let json_text = fs::read_to_string(&json_path)
         .map_err(|error| format!("Не удалось прочитать JSON версии: {error}"))?;
     let data: Value = serde_json::from_str(&json_text)
